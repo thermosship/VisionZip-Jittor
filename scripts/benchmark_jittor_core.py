@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import statistics
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -38,6 +39,32 @@ def parse_args():
 
 def synchronize(output):
     output["compressed_tokens"].sync()
+
+
+def query_gpu():
+    command = [
+        "nvidia-smi",
+        "--query-gpu=name,memory.total,driver_version",
+        "--format=csv,noheader,nounits",
+    ]
+    try:
+        completed = subprocess.run(
+            command,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        name, memory_mib, driver = [
+            field.strip() for field in completed.stdout.strip().split(",", maxsplit=2)
+        ]
+        return {
+            "name": name,
+            "memory_total_mib": int(memory_mib),
+            "driver_version": driver,
+        }
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
 
 
 def main():
@@ -79,6 +106,8 @@ def main():
         synchronize(output)
         samples_ms.append((time.perf_counter() - start) * 1000)
 
+    mean_ms = statistics.mean(samples_ms)
+    output_tokens = config.actual_output_tokens
     report = {
         "config": config.to_dict(),
         "input_shape": {
@@ -86,16 +115,28 @@ def main():
             "attentions": list(attentions.shape),
             "metric": list(metric.shape),
         },
+        "output_shape": list(output["compressed_tokens"].shape),
+        "token_statistics": {
+            "input_sequence_tokens": args.sequence_length,
+            "nominal_visual_tokens": config.nominal_visual_tokens,
+            "actual_output_tokens_including_cls": output_tokens,
+            "output_fraction": output_tokens / args.sequence_length,
+            "sequence_reduction_fraction": 1.0
+            - output_tokens / args.sequence_length,
+        },
         "warmup": args.warmup,
         "iterations": args.iterations,
         "latency_ms": {
-            "mean": statistics.mean(samples_ms),
+            "mean": mean_ms,
             "median": statistics.median(samples_ms),
             "min": min(samples_ms),
             "max": max(samples_ms),
             "stdev": statistics.pstdev(samples_ms),
         },
+        "throughput_calls_per_second": 1000.0 / mean_ms,
         "jittor_version": jt.__version__,
+        "use_cuda": int(jt.flags.use_cuda),
+        "gpu": query_gpu(),
     }
     text = json.dumps(report, indent=2, ensure_ascii=False)
     print(text)
