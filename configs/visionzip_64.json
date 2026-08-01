@@ -1,0 +1,9 @@
+{
+  "name": "clip_64_code_exact",
+  "dominant_tokens": 54,
+  "contextual_tokens": 10,
+  "merge_mode": "code_exact",
+  "include_cls": true,
+  "normalization_eps": 0.0,
+  "source": "Official VisionZip README setting: 54 dominant + 10 contextual; CLS is additional"
+}

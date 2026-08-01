@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "visionzip-jittor"
+version = "0.1.0"
+description = "Native Jittor reproduction and PyTorch alignment tools for VisionZip"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
+authors = [{name = "thermosship"}]
+dependencies = ["numpy>=1.23"]
+
+[project.optional-dependencies]
+reference = ["torch==2.1.2"]
+jittor = ["jittor==1.3.11.0"]
+dev = ["pytest>=7"]
+
+[tool.setuptools.packages.find]
+include = ["visionzip_jittor*", "reference*"]

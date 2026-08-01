@@ -1,0 +1,9 @@
+{
+  "name": "clip_192_code_exact",
+  "dominant_tokens": 162,
+  "contextual_tokens": 30,
+  "merge_mode": "code_exact",
+  "include_cls": true,
+  "normalization_eps": 0.0,
+  "source": "Project preset: proportional 3x extension of official 54:10 setting; not claimed as an official paper split"
+}

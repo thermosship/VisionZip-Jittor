@@ -1,0 +1,9 @@
+{
+  "name": "clip_64_paper_avg_ablation",
+  "dominant_tokens": 54,
+  "contextual_tokens": 10,
+  "merge_mode": "paper_avg",
+  "include_cls": true,
+  "normalization_eps": 0.0,
+  "source": "Project ablation: averages each target with assigned tokens instead of official code-exact addition"
+}

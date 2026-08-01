@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Models and datasets
+models/
+datasets/
+checkpoints/
+*.bin
+*.safetensors
+*.ckpt
+*.pth
+*.pt
+
+# Generated alignment artifacts
+outputs/*.npz
+outputs/*.npy
+outputs/*.json
+logs/*.log
+logs/*.json
+logs/*.csv
+
+# Jittor / experiment caches
+.cache/
+.jittor/
+wandb/
+runs/
+
+# Local environment captures
+environment/generated/
