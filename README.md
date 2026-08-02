@@ -2,7 +2,7 @@
 
 使用 **Jittor 原生张量算子**复现 VisionZip 的视觉 Token 压缩核心，并建立可重复的 PyTorch/Jittor 数值对齐流程。
 
-> Current status: Phases 1 and 2 are complete. Phase 3A now has a native Jittor Projector, a frozen language stub, and a forward/backward smoke runner; formal 64/128/192 AutoDL validation is the next action.
+> Current status: Phases 1, 2, and Phase 3A are complete. Native Jittor VisionZip + Projector + frozen-language-stub forward/backward validation passed for 64/128/192; the next step is Phase 3B real frozen-LLM integration.
 
 ## 1. 项目目标
 
@@ -305,6 +305,20 @@ python scripts/run_phase3_projector_smoke.py \
 
 The runner recomputes native Jittor VisionZip outputs, maps 1024-dimensional tokens to 4096 dimensions, packs multimodal embeddings, checks finite nonzero Projector gradients, updates Projector parameters, and verifies that frozen language parameters do not change. See [`docs/PHASE3_PROJECTOR_FROZEN_LLM.md`](docs/PHASE3_PROJECTOR_FROZEN_LLM.md) for scope and acceptance criteria.
 
+### 8.9 Phase 3A formal AutoDL results
+
+On 2026-08-02, the CUDA smoke runner completed all three real-CLIP budgets with top-level `passed: true`.
+
+| Budget | VisionZip output | Projector output | Packed embeddings | Loss | Gradient L2 norm | Projector max delta | Frozen max delta | Result |
+|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| 64 | `[3,65,1024]` | `[3,65,4096]` | `[3,81,4096]` | `0.04205053` | `0.71024593` | `9.99989e-05` | `0.0` | PASS |
+| 128 | `[3,129,1024]` | `[3,129,4096]` | `[3,145,4096]` | `0.03326600` | `0.48738245` | `9.99980e-05` | `0.0` | PASS |
+| 192 | `[3,193,1024]` | `[3,193,4096]` | `[3,209,4096]` | `0.03013558` | `0.43798293` | `9.99961e-05` | `0.0` | PASS |
+
+For every budget, all shape checks passed, the Phase 2 compressed-token regression remained within tolerance, assignments were exact, the optimizer contained Projector parameters only, all four Projector parameter tensors received finite nonzero gradients, Projector parameters changed after one Adam step, and all 1,048,576 frozen-language parameters remained bitwise unchanged.
+
+The 64-budget forward/backward values include first-use JIT/graph compilation (`4318 ms` / `7317 ms`) and are not performance measurements. The later 128/192 values are smoke timings only; a dedicated warm-up and repeated-iteration benchmark is required before making speed claims.
+
 ## 9. 项目结构
 
 ```text
@@ -346,17 +360,17 @@ VisionZip-Jittor/
 - [x] Implement the Phase 3A native Jittor Projector and multimodal packing;
 - [x] Implement the frozen-language-stub gradient isolation path;
 - [x] Add a 64/128/192 forward/backward smoke runner and tests;
-- [ ] Run Phase 3A on AutoDL RTX 4090 and save a `passed: true` report;
+- [x] Run Phase 3A on AutoDL RTX 4090 and save a `passed: true` report;
 - [ ] Replace the stub with a real frozen LLM in Phase 3B.
 
 ## 11. Next steps
 
-1. Run Phase 3A on AutoDL and require `passed: true` for 64/128/192.
-2. Preserve shape, gradient, Projector-update, and frozen-parameter evidence.
-3. Start Phase 3B by replacing `FrozenLanguageStub` with a real frozen LLM.
-4. Record real generation, prefill latency, and peak memory for all budgets.
-5. After real minimum integration passes, implement Projector-only fine-tuning.
-6. Consolidate loss, quality, speed, memory, and visualization evidence.
+1. Archive the Phase 3A JSON/log evidence and record its checksum.
+2. Start Phase 3B by selecting a license-compatible real frozen LLM with hidden size 4096.
+3. Implement or integrate Jittor weight loading, token embedding, transformer blocks, and LM head.
+4. Keep CLIP and the real LLM frozen; optimize the Projector only.
+5. Record real generation, prefill latency, and peak memory for 64/128/192.
+6. After real minimum integration passes, implement Projector-only fine-tuning and evaluation.
 
 ## 12. 许可证与声明
 

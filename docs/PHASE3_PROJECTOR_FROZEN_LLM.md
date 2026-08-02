@@ -147,9 +147,69 @@ frozen_language_changed == false
 passed == true
 ```
 
-## 7. Next step: Phase 3B
+## 7. Formal AutoDL result (2026-08-02)
 
-After Phase 3A passes on AutoDL:
+Environment reported by the runner:
+
+```text
+Jittor: 1.3.11.0
+device: cuda
+Projector: mlp2x_gelu, 1024 -> 4096 -> 4096
+Projector parameters: 20,979,712
+Frozen-language parameters: 1,048,576
+optimizer: Adam, Projector parameters only
+```
+
+All three real-CLIP budgets passed:
+
+| Budget | VisionZip output | Projector output | Packed shape | Logits shape | Loss | Gradient L2 | Projector max delta | Frozen max delta |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 64 | `[3,65,1024]` | `[3,65,4096]` | `[3,81,4096]` | `[3,81,128]` | `0.04205053` | `0.71024593` | `9.99989e-05` | `0.0` |
+| 128 | `[3,129,1024]` | `[3,129,4096]` | `[3,145,4096]` | `[3,145,128]` | `0.03326600` | `0.48738245` | `9.99980e-05` | `0.0` |
+| 192 | `[3,193,1024]` | `[3,193,4096]` | `[3,209,4096]` | `[3,209,128]` | `0.03013558` | `0.43798293` | `9.99961e-05` | `0.0` |
+
+For each budget:
+
+```text
+shape_checks: all true
+compressed_allclose: true
+assignments_exact: true
+optimizer_scope_exact: true
+projector_all_trainable: true
+parameter_tensors_with_grad: 4
+gradient.finite: true
+projector_changed: true
+frozen_language_all_stop_grad: true
+frozen_language_changed: false
+reference_inputs_all_stop_grad: true
+passed: true
+```
+
+The top-level result was:
+
+```json
+{
+  "artifact_type": "phase3_projector_frozen_language_stub_smoke_v1",
+  "real_llm": false,
+  "passed": true
+}
+```
+
+### Timing interpretation
+
+The 64-budget forward/backward values (`4318 ms` / `7317 ms`) include first-use JIT or graph compilation that was not covered by the earlier forward-only warm-up. They must not be compared with the later values or reported as steady-state performance.
+
+The 128 and 192 smoke calls reported approximately `4.57/2.56 ms` and `5.33/0.99 ms` for forward/backward. These are single smoke measurements, not a benchmark. Phase 3 performance claims require a separate runner with compilation isolation, repeated warm-up, synchronized repeated iterations, and peak-memory collection.
+
+### Conclusion
+
+Phase 3A is complete. It proves that real CLIP features can flow through native Jittor VisionZip and a trainable 20.98M-parameter Projector, while the reference inputs and language surrogate remain frozen. It also proves one-step backward/update mechanics and exact gradient isolation for all three budgets.
+
+It does not prove real LLM generation or end-to-end VLM performance; those remain Phase 3B work.
+
+## 8. Next step: Phase 3B
+
+Now that Phase 3A has passed on AutoDL:
 
 1. Select a license-compatible and obtainable language model with hidden size 4096.
 2. Implement or integrate its embedding, transformer, LM head, and weight loading in Jittor.
