@@ -1,0 +1,19 @@
+{
+  "model_name_or_path": "openai-community/gpt2",
+  "projector_type": "mlp2x_gelu",
+  "vision_hidden_size": 1024,
+  "learning_rate": 0.0001,
+  "seed": 2026,
+  "prompt": "Describe the image in a short phrase:",
+  "targets": [
+    " dense geometric pattern",
+    " simple outdoor scene",
+    " printed text"
+  ],
+  "generation_prompt": " This image shows",
+  "max_new_tokens": 8,
+  "warmup": 2,
+  "iterations": 5,
+  "logit_atol": 0.0005,
+  "logit_rtol": 0.0005
+}

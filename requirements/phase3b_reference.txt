@@ -1,0 +1,4 @@
+# Artifact export uses the existing PyTorch reference environment.
+transformers==4.31.0
+torch==2.1.2
+numpy>=1.23,<2.0

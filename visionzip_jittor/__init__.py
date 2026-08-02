@@ -5,6 +5,12 @@ used in a separate environment without installing Jittor there.
 """
 
 from .config import VisionZipConfig, load_config
+from .gpt2_config import (
+    GPT2Config,
+    Phase3BConfig,
+    load_gpt2_config,
+    load_phase3b_config,
+)
 from .projector_config import ProjectorConfig, load_projector_config
 
 __all__ = [
@@ -12,5 +18,9 @@ __all__ = [
     "load_config",
     "ProjectorConfig",
     "load_projector_config",
+    "GPT2Config",
+    "Phase3BConfig",
+    "load_gpt2_config",
+    "load_phase3b_config",
 ]
 __version__ = "0.1.0"

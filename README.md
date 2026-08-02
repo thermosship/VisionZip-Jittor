@@ -2,7 +2,7 @@
 
 使用 **Jittor 原生张量算子**复现 VisionZip 的视觉 Token 压缩核心，并建立可重复的 PyTorch/Jittor 数值对齐流程。
 
-> Current status: Phases 1, 2, and Phase 3A are complete. Native Jittor VisionZip + Projector + frozen-language-stub forward/backward validation passed for 64/128/192; the next step is Phase 3B real frozen-LLM integration.
+> Current status: Phases 1, 2, and Phase 3A are complete. Phase 3B native Jittor GPT-2 code, artifact export, real generation, Projector-only backward, and measurement runner are implemented; formal AutoDL CUDA validation is pending.
 
 ## 1. 项目目标
 
@@ -319,6 +319,14 @@ For every budget, all shape checks passed, the Phase 2 compressed-token regressi
 
 The 64-budget forward/backward values include first-use JIT/graph compilation (`4318 ms` / `7317 ms`) and are not performance measurements. The later 128/192 values are smoke timings only; a dedicated warm-up and repeated-iteration benchmark is required before making speed claims.
 
+### 8.10 Phase 3B real frozen GPT-2 integration
+
+Phase 3B now has an initial real-LLM implementation based on GPT-2 small. Unlike the Phase 3A stub, this path executes real token embeddings, learned positional embeddings, 12 causal Transformer blocks, final LayerNorm, and the tied GPT-2 LM head in native Jittor. The model hidden size is 768, so the Phase 3B Projector maps `1024 -> 768 -> 768`.
+
+The implementation includes a Hugging Face float32 weight/tokenizer exporter, deterministic text-logit reference, checksums for weights/config/tokenizer/reference, native tensor-count and parameter-count integrity checks, a native NPZ weight loader, real causal language loss, Projector-only optimizer step, full frozen-language SHA256 verification, greedy decoded text, warmed repeated prefill timing, and sampled process GPU memory. See [`docs/PHASE3B_REAL_GPT2.md`](docs/PHASE3B_REAL_GPT2.md).
+
+The code is implemented but is **not yet recorded as Phase 3B complete**. Completion requires running the AutoDL CUDA procedure and saving a top-level `real_llm: true`, `passed: true` report for 64/128/192. Generated text before Projector training is execution evidence only, not a visual-language quality result.
+
 ## 9. 项目结构
 
 ```text
@@ -339,7 +347,9 @@ VisionZip-Jittor/
     |-- core.py                 # native Jittor VisionZip core
     |-- projector_config.py
     |-- projector.py            # native Jittor multimodal Projector
-    `-- multimodal.py           # frozen language stub and packing
+    |-- multimodal.py           # frozen language stub and packing
+    |-- gpt2_config.py          # Phase 3B GPT-2/runtime configuration
+    `-- gpt2.py                 # native Jittor real GPT-2
 ```
 
 ## 10. 阶段状态
@@ -361,16 +371,17 @@ VisionZip-Jittor/
 - [x] Implement the frozen-language-stub gradient isolation path;
 - [x] Add a 64/128/192 forward/backward smoke runner and tests;
 - [x] Run Phase 3A on AutoDL RTX 4090 and save a `passed: true` report;
-- [ ] Replace the stub with a real frozen LLM in Phase 3B.
+- [x] Implement native Jittor GPT-2 blocks, tied LM head, weight loading, and tokenizer artifacts;
+- [x] Implement Phase 3B Projector-only loss/backward, real generation, prefill timing, and memory sampling;
+- [ ] Run the Phase 3B real GPT-2 path on AutoDL for 64/128/192 and save a `real_llm: true`, `passed: true` report.
 
 ## 11. Next steps
 
-1. Archive the Phase 3A JSON/log evidence and record its checksum.
-2. Start Phase 3B by selecting a license-compatible real frozen LLM with hidden size 4096.
-3. Implement or integrate Jittor weight loading, token embedding, transformer blocks, and LM head.
-4. Keep CLIP and the real LLM frozen; optimize the Projector only.
-5. Record real generation, prefill latency, and peak memory for 64/128/192.
-6. After real minimum integration passes, implement Projector-only fine-tuning and evaluation.
+1. Export the GPT-2 float32 NPZ, tokenizer, config, manifest, and deterministic PyTorch logit reference on AutoDL.
+2. Run native Jittor GPT-2 unit tests and fix any environment-specific Jittor operator/API differences.
+3. Validate budget 64 first, including text-logit alignment, real generation, freezing, and Projector gradients.
+4. Run the full 64/128/192 Phase 3B report and archive JSON/log evidence with SHA256.
+5. Only after the minimum real-LLM integration passes, implement Projector training, KV cache, mixed precision, and downstream evaluation.
 
 ## 12. 许可证与声明
 

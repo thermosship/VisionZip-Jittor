@@ -1,0 +1,5 @@
+# Tokenizer-only dependencies for the native Jittor Phase 3B runner.
+# Install in the Jittor environment. PyTorch is not required by this file.
+transformers==4.31.0
+tokenizers>=0.13.3,<0.14
+numpy>=1.23,<2.0
