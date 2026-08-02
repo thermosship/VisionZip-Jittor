@@ -2,7 +2,7 @@
 
 使用 **Jittor 原生张量算子**复现 VisionZip 的视觉 Token 压缩核心，并建立可重复的 PyTorch/Jittor 数值对齐流程。
 
-> 当前进度：第一阶段已完成；第二阶段真实 CLIP 特征导出、跨框架对齐和 Token 可视化代码已实现，等待 AutoDL 实测。
+> 当前进度：第一阶段与第二阶段均已完成；真实 CLIP 特征在 64/128/192 三档下通过 PyTorch/Jittor 对齐，下一阶段为多模态 Projector 与冻结 LLM 的最小端到端集成。
 
 ## 1. 项目目标
 
@@ -15,7 +15,7 @@
 - 仅训练多模态 Projector 的高效微调；
 - 训练、测试、性能和可视化日志。
 
-当前仓库已完成第一阶段，并进入第二阶段，已经实现：
+当前仓库已完成第一阶段与第二阶段，已经实现：
 
 - 原生 Jittor VisionZip 核心；
 - 独立 PyTorch 参考实现；
@@ -25,7 +25,9 @@
 - 单元测试和核心性能测试入口；
 - 真实图片的 CLIP Hidden State、Attention 与 Key Metric 导出；
 - 真实特征的一键 PyTorch/Jittor 对齐流水线；
-- Dominant Token 与 Contextual Merge 可视化。
+- Dominant Token 与 Contextual Merge 可视化；
+- 面向 CLIP 64 维 Key Metric 的 PyTorch 2.1 CUDA 精确归一化路径；
+- 真实 CLIP 特征在 64/128/192 三档下的逐项对齐与 9 张 Token 可视化。
 
 ## 2. 上游版本与复现范围
 
@@ -38,7 +40,7 @@ Commit: 8f86b55c6f000eb033e6912538af2dd7dcb30502
 Snapshot date: 2026-08-01
 ```
 
-详细版本记录见 [`references/UPSTREAM.md`](references/UPSTREAM.md)，第一阶段数值结果见 [`docs/PHASE1_RESULTS.md`](docs/PHASE1_RESULTS.md)，第二阶段运行说明见 [`docs/PHASE2_REAL_CLIP.md`](docs/PHASE2_REAL_CLIP.md)。
+详细版本记录见 [`references/UPSTREAM.md`](references/UPSTREAM.md)，第一阶段数值结果见 [`docs/PHASE1_RESULTS.md`](docs/PHASE1_RESULTS.md)，第二阶段真实 CLIP 实测结果与运行说明见 [`docs/PHASE2_REAL_CLIP.md`](docs/PHASE2_REAL_CLIP.md)。
 
 本仓库没有复制官方 LLaVA 模型代码。`reference/pytorch_visionzip.py` 是为了框架数值对齐而编写的独立参考模块。
 
@@ -265,6 +267,27 @@ python scripts/run_real_clip_pipeline.py \
 
 该命令提取真实图像的倒数第二层 CLIP 特征，运行 64/128/192 三档 PyTorch 参考压缩，调用原生 Jittor 对齐，并输出 Token 可视化。详细说明、输出文件和通过标准见 [`docs/PHASE2_REAL_CLIP.md`](docs/PHASE2_REAL_CLIP.md)。
 
+### 8.7 第二阶段实测结果
+
+2026-08-02 在 RTX 4090 上使用三张确定性样例图 `dense.png`、`scene.png` 和 `text.png` 完成正式 FP32 流水线。输入 Shape 为：
+
+```text
+hidden_states: [3, 577, 1024]
+attentions:    [3, 16, 577, 577]
+metric:        [3, 577, 64]
+pixel_values:  [3, 3, 336, 336]
+```
+
+| 名义预算 | 实际输出 Shape | 压缩 Token 最大绝对误差 | Contextual Token 最大绝对误差 | Assignment | 结果 |
+|---:|---:|---:|---:|---:|---|
+| 64 | `[3, 65, 1024]` | `5.7220459e-06` | `5.7220459e-06` | exact, 100% | PASS |
+| 128 | `[3, 129, 1024]` | `1.9073486e-06` | `1.9073486e-06` | exact, 100% | PASS |
+| 192 | `[3, 193, 1024]` | `1.9073486e-06` | `1.9073486e-06` | exact, 100% | PASS |
+
+所有 `selected_indices`、`dominant_ordered_indices`、`remaining_indices`、`target_positions`、`merge_positions` 和 `assignments` 均逐元素完全一致；所有规定浮点张量均在 `atol=1e-5, rtol=1e-5` 下通过。流水线最终写出 `passed: true`，并生成 `3 张图片 × 3 个预算 = 9` 张 Token 可视化。
+
+真实 CLIP 特征包含极近的余弦相似度 tie。普通跨框架 L2 归一化曾造成 `4 / 1536` 个 Assignment 差异。`visionzip_jittor/core.py` 现通过原生 `jt.code` CUDA Kernel 复现 PyTorch 2.1 的 64 维归约布局，并使用 `__fmul_rn`、`__fadd_rn`、`__fsqrt_rn` 和 `__fdiv_rn` 固定 float32 舍入路径；修复后 norm、normalized metric、similarity 和 Assignment 的诊断结果均达到逐元素精确一致。非 CUDA、非 float32、非 64 维或 `eps > 0` 时仍使用通用 Jittor 回退路径。
+
 ## 9. 项目结构
 
 ```text
@@ -285,7 +308,7 @@ VisionZip-Jittor/
     └── core.py                 # 原生 Jittor 核心
 ```
 
-## 10. 第一阶段状态
+## 10. 阶段状态
 
 - [x] PyTorch 参考实现与固定的官方 CLIP 代码逻辑一致；
 - [x] 原生 Jittor 核心实现完成；
@@ -296,16 +319,18 @@ VisionZip-Jittor/
 - [x] 浮点结果在指定容差内通过；
 - [x] 64/128/192 三种配置完成对齐；
 - [x] 完成 RTX 4090 核心性能测试并保存摘要；
-- [ ] 在 AutoDL 上完成真实 CLIP 特征三档对齐和可视化。
+- [x] 在 AutoDL 上完成真实 CLIP 特征三档对齐和可视化；
+- [x] 定位并修复真实 CLIP near-tie 的 CUDA 归一化数值路径；
+- [x] 保存第二阶段流水线摘要、逐档对齐报告和 9 张可视化。
 
 ## 11. 后续阶段
 
-1. 在 AutoDL 上运行真实 CLIP 三档对齐并记录结果；
-2. 检查自然场景、OCR 和密集目标的 Token 可视化；
-3. 接入多模态 Projector 和冻结 LLM；
-4. 实现只训练 Projector 的高效微调；
-5. 对齐 Loss、效果、速度、显存和可视化；
-6. 整理最终 README、PPT 和视频素材。
+1. 接入多模态 Projector 和冻结 LLM，完成最小端到端 Forward；
+2. 验证 64/128/192 三档 VisionZip 输出确实进入 Projector 与 LLM；
+3. 冻结 CLIP 和 LLM，仅允许 Projector 获得梯度，并完成一次 Backward；
+4. 记录三档输出 Shape、梯度、生成结果、Prefill 延迟和峰值显存；
+5. 最小集成通过后，再实现只训练 Projector 的高效微调；
+6. 对齐 Loss、效果、速度、显存和可视化，并整理最终 README、PPT 和视频素材。
 
 ## 12. 许可证与声明
 

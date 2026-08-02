@@ -1,5 +1,7 @@
 # 第二阶段：真实 CLIP 特征对齐
 
+> 状态：已于 2026-08-02 在 AutoDL RTX 4090 上完成。64/128/192 三档均通过，离散索引与 Assignment 逐元素完全一致，流水线摘要为 `passed: true`。
+
 ## 1. 阶段目标
 
 第一阶段使用固定随机张量验证 VisionZip 核心算法。第二阶段将输入替换为真实图片经过 CLIP ViT-L/14-336 得到的中间特征，并继续比较 PyTorch 与原生 Jittor：
@@ -232,12 +234,169 @@ rtol = 1e-5
 
 任意档位失败时，流水线会以非零状态退出，不会写出成功摘要。
 
-## 9. 当前边界
+## 9. AutoDL 正式实验结果
+
+### 9.1 实验环境
+
+```text
+Date: 2026-08-02
+OS: Ubuntu 22.04.1 LTS
+GPU: NVIDIA GeForce RTX 4090 24GB
+CUDA Toolkit: 11.8.89
+PyTorch: 2.1.2+cu118
+Jittor: 1.3.11.0
+Transformers: 4.31.0
+Model: openai/clip-vit-large-patch14-336
+Dtype: float32
+Device: cuda
+Tolerance: atol=1e-5, rtol=1e-5
+```
+
+测试批次由三张确定性样例图组成：
+
+```text
+assets/sample_images/dense.png
+assets/sample_images/scene.png
+assets/sample_images/text.png
+```
+
+真实输入 Shape：
+
+```text
+pixel_values:  [3, 3, 336, 336]
+hidden_states: [3, 577, 1024]
+attentions:    [3, 16, 577, 577]
+metric:        [3, 577, 64]
+patch grid:    24 × 24
+```
+
+CLIP 使用倒数第二个 Encoder Layer，即 `layer_index=22`、`hidden_states_index=23` 和 `attention_index=22`。Metric 来源为 `k_proj -> [B,H,N,D] -> mean(heads)`。
+
+### 9.2 三档汇总
+
+| 名义预算 | 实际输出 Shape | Compressed 最大误差 | Contextual 最大误差 | CLS Attention 最大误差 | Assignment Counts 最大误差 | Assignment | 结果 |
+|---:|---:|---:|---:|---:|---:|---:|---|
+| 64 | `[3, 65, 1024]` | `5.7220458984375e-06` | `5.7220458984375e-06` | `2.384185791015625e-07` | `0.0` | exact, 1.0 | PASS |
+| 128 | `[3, 129, 1024]` | `1.9073486328125e-06` | `1.9073486328125e-06` | `2.384185791015625e-07` | `0.0` | exact, 1.0 | PASS |
+| 192 | `[3, 193, 1024]` | `1.9073486328125e-06` | `1.9073486328125e-06` | `3.5762786865234375e-07` | `0.0` | exact, 1.0 | PASS |
+
+三个预算下，下列离散结果全部逐元素完全一致，`agreement=1.0`：
+
+- `selected_indices`；
+- `dominant_ordered_indices`；
+- `remaining_indices`；
+- `target_positions`；
+- `merge_positions`；
+- `assignments`。
+
+`compressed_tokens`、`contextual_tokens`、`cls_attention_sum` 和 `assignment_counts` 全部通过 `atol=1e-5, rtol=1e-5`。`logs/real_clip/pipeline_summary.json` 最终记录：
+
+```json
+{
+  "passed": true
+}
+```
+
+流水线同时生成 9 张可视化，即三张输入图片分别对应 64、128、192 三档结果。
+
+## 10. Near-tie 数值问题与精确 CUDA 修复
+
+### 10.1 初始现象
+
+第一轮真实 CLIP 对齐中，Dominant Token 相关索引全部精确一致，但 64 档 Assignment 出现：
+
+```text
+assignment mismatch: 4 / 1536
+assignment agreement: 0.9973958333333334
+compressed_tokens max_abs_error: 0.012266159057617188
+```
+
+这些差异不是算法、索引、Batch Matrix Multiplication 或 Argmax 实现错误，而是部分真实 Key Metric 的余弦相似度非常接近。L2 归一化阶段极小的 float32 舍入差异改变了 near-tie 的最终大小关系，进而改变离散 Assignment。
+
+### 10.2 数值路径隔离
+
+逐阶段替换 PyTorch/Jittor 中间量得到：
+
+```text
+metric_filtered max error:                  0.0
+Jittor norm max error:                      2.861022949219e-06
+Jittor normalized max error:                8.940696716309e-08
+Jittor norm + Jittor BMM mismatch:           4
+PyTorch norm + Jittor BMM mismatch:          3
+PyTorch normalized + Jittor BMM mismatch:    0
+PyTorch operands + Jittor BMM mismatch:      0
+PyTorch similarity + Jittor argmax mismatch: 0
+```
+
+因此可以确定：
+
+- Gather 路径精确；
+- Jittor BMM 在相同 operands 下精确；
+- Jittor Argmax 在相同 similarity 下精确；
+- 差异完全来自 L2 norm 归约和除法的数值路径。
+
+### 10.3 修复方案
+
+`visionzip_jittor/core.py` 增加原生 `jt.code` CUDA 路径 `_torch_cuda_l2_normalize_64`。该路径针对 CLIP ViT-L/14-336 的 `[B,N,64]` FP32 Metric：
+
+1. 使用 32 个 CUDA lane，每个 lane 处理两个元素；
+2. 按 PyTorch 2.1 CUDA 的 ascending warp shuffle 顺序归约；
+3. 使用 `__fmul_rn` 固定平方舍入；
+4. 使用 `__fadd_rn` 固定累加舍入；
+5. 使用 `__fsqrt_rn` 固定平方根舍入；
+6. 使用 `__fdiv_rn` 固定除法舍入。
+
+最终精确诊断结果：
+
+```text
+norm max error:         0.0
+norm exact elements:    1566 / 1566
+normalized max error:   0.0
+normalized exact:       100224 / 100224
+similarity max error:   0.0
+similarity exact:       15360 / 15360
+assignment mismatch:    0
+assignment agreement:   1.0
+```
+
+该修复对应提交：
+
+```text
+df23929 fix: match PyTorch CUDA normalization for CLIP metrics
+```
+
+精确路径仅在以下条件同时满足时启用：
+
+```text
+CUDA enabled
+float32
+3-D tensor
+last dimension = 64
+eps = 0.0
+```
+
+CPU、其他 dtype、其他 Metric 维度或 `eps > 0` 时继续使用通用原生 Jittor 归一化回退，不会错误套用特定 CUDA Kernel。
+
+## 11. 结果归档
+
+第二阶段证据包保存了流水线摘要、三档 JSON 对齐报告、诊断日志、Manifest、三张输入图片和九张可视化。外部归档文件的校验信息为：
+
+```text
+File: VisionZip-Jittor-phase2-evidence-20260802.tar.gz
+SHA256: 8886E0FE914A0D68AEC70346005853DC83A9086185D58DCFE945D040DE612CDC
+Entries: 35
+Visualization PNGs: 9
+```
+
+大型真实 CLIP NPZ 不提交到 Git；仓库通过脚本、固定模型路径、固定样例图和 Manifest 保持实验可重复性。
+
+## 12. 当前边界与下一阶段
 
 本阶段可以证明：
 
 - 官方 CLIP 类型的真实视觉特征能够正确进入 Jittor VisionZip；
 - PyTorch 与 Jittor 的真实特征压缩行为一致；
+- 三档 Token 选择、目标选择和 Merge Assignment 精确一致；
 - Token 选择和语义合并可以可视化解释。
 
 本阶段仍不能证明：
@@ -247,4 +406,4 @@ rtol = 1e-5
 - 完整模型峰值显存下降；
 - Projector 微调效果。
 
-这些属于后续端到端推理和高效微调阶段。
+下一阶段接入多模态 Projector 与冻结 LLM。首先完成 64/128/192 三档最小 Forward/Backward，确认 VisionZip 输出确实进入 Projector、CLIP 与 LLM 保持冻结、Projector 获得梯度；最小集成通过后，再开展只训练 Projector 的高效微调和完整性能评估。
