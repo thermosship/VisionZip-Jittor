@@ -1,0 +1,5 @@
+# Real CLIP feature extraction in the existing PyTorch baseline environment.
+# Install with /root/miniconda3/bin/python; do not install this file in Jittor.
+transformers==4.31.0
+Pillow>=9.5,<12
+numpy>=1.23,<2.0

@@ -28,9 +28,20 @@ checkpoints/
 outputs/*.npz
 outputs/*.npy
 outputs/*.json
+outputs/**/*.npz
+outputs/**/*.npy
+outputs/**/*.json
+outputs/**/*.png
 logs/*.log
 logs/*.json
 logs/*.csv
+logs/**/*.log
+logs/**/*.json
+logs/**/*.csv
+
+# Generated sample inputs
+assets/sample_images/*
+!assets/sample_images/README.md
 
 # Jittor / experiment caches
 .cache/

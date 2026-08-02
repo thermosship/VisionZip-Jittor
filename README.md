@@ -2,7 +2,7 @@
 
 使用 **Jittor 原生张量算子**复现 VisionZip 的视觉 Token 压缩核心，并建立可重复的 PyTorch/Jittor 数值对齐流程。
 
-> 当前进度：第一阶段核心算法已完成 FP32 数值对齐与 RTX 4090 核心性能测试；下一步进行真实 CLIP 视觉特征验证。
+> 当前进度：第一阶段已完成；第二阶段真实 CLIP 特征导出、跨框架对齐和 Token 可视化代码已实现，等待 AutoDL 实测。
 
 ## 1. 项目目标
 
@@ -15,14 +15,17 @@
 - 仅训练多模态 Projector 的高效微调；
 - 训练、测试、性能和可视化日志。
 
-当前仓库处于第一阶段，已经实现：
+当前仓库已完成第一阶段，并进入第二阶段，已经实现：
 
 - 原生 Jittor VisionZip 核心；
 - 独立 PyTorch 参考实现；
 - 64、128、192 Token 配置；
 - PyTorch 参考张量导出；
 - Jittor 中间变量逐项对齐；
-- 单元测试和核心性能测试入口。
+- 单元测试和核心性能测试入口；
+- 真实图片的 CLIP Hidden State、Attention 与 Key Metric 导出；
+- 真实特征的一键 PyTorch/Jittor 对齐流水线；
+- Dominant Token 与 Contextual Merge 可视化。
 
 ## 2. 上游版本与复现范围
 
@@ -35,7 +38,7 @@ Commit: 8f86b55c6f000eb033e6912538af2dd7dcb30502
 Snapshot date: 2026-08-01
 ```
 
-详细版本记录见 [`references/UPSTREAM.md`](references/UPSTREAM.md)，第一阶段数值结果见 [`docs/PHASE1_RESULTS.md`](docs/PHASE1_RESULTS.md)。
+详细版本记录见 [`references/UPSTREAM.md`](references/UPSTREAM.md)，第一阶段数值结果见 [`docs/PHASE1_RESULTS.md`](docs/PHASE1_RESULTS.md)，第二阶段运行说明见 [`docs/PHASE2_REAL_CLIP.md`](docs/PHASE2_REAL_CLIP.md)。
 
 本仓库没有复制官方 LLaVA 模型代码。`reference/pytorch_visionzip.py` 是为了框架数值对齐而编写的独立参考模块。
 
@@ -234,10 +237,39 @@ python scripts/benchmark_jittor_core.py \
 
 三档核心延迟均约为 `0.9–1.0 ms`。档位之间的差值很小，且处于单次运行抖动范围内，因此不能据此宣称 128 Token 配置必然比 64 Token 配置更快。完整数据、测试边界和解释见 [`docs/PHASE1_RESULTS.md`](docs/PHASE1_RESULTS.md)。
 
+### 8.6 真实 CLIP 特征对齐（第二阶段）
+
+先在 PyTorch 基准环境安装额外依赖并生成样例图：
+
+```bash
+/root/miniconda3/bin/python -m pip install -r requirements/real_clip.txt
+/root/miniconda3/bin/python scripts/create_sample_images.py \
+  --output-dir assets/sample_images
+```
+
+将 Hugging Face 缓存放在数据盘，然后从当前 Jittor 环境一键调用两个 Python 环境：
+
+```bash
+export HF_HOME=/root/autodl-tmp/cache/huggingface
+export TRANSFORMERS_CACHE=/root/autodl-tmp/cache/huggingface/transformers
+
+python scripts/run_real_clip_pipeline.py \
+  --torch-python /root/miniconda3/bin/python \
+  --jittor-python /root/autodl-tmp/envs/visionzip-jittor/bin/python \
+  --image-dir assets/sample_images \
+  --model-name-or-path openai/clip-vit-large-patch14-336 \
+  --cache-dir /root/autodl-tmp/cache/huggingface \
+  --device cuda \
+  --dtype float32
+```
+
+该命令提取真实图像的倒数第二层 CLIP 特征，运行 64/128/192 三档 PyTorch 参考压缩，调用原生 Jittor 对齐，并输出 Token 可视化。详细说明、输出文件和通过标准见 [`docs/PHASE2_REAL_CLIP.md`](docs/PHASE2_REAL_CLIP.md)。
+
 ## 9. 项目结构
 
 ```text
 VisionZip-Jittor/
+├── assets/sample_images/       # 可重复样例图生成位置
 ├── configs/                    # 64/128/192 Token 配置
 ├── docs/                       # 算法和实验结果说明
 ├── environment/                # AutoDL 激活和环境证据脚本
@@ -246,7 +278,7 @@ VisionZip-Jittor/
 ├── reference/                  # PyTorch 参考实现
 ├── references/                 # 上游版本记录
 ├── requirements/               # 两个环境的依赖说明
-├── scripts/                    # 导出、对齐和性能测试脚本
+├── scripts/                    # 随机/真实特征导出、对齐、性能和可视化脚本
 ├── tests/                      # 单元测试
 └── visionzip_jittor/
     ├── config.py
@@ -264,12 +296,12 @@ VisionZip-Jittor/
 - [x] 浮点结果在指定容差内通过；
 - [x] 64/128/192 三种配置完成对齐；
 - [x] 完成 RTX 4090 核心性能测试并保存摘要；
-- [ ] 使用真实 CLIP 特征再次验证。
+- [ ] 在 AutoDL 上完成真实 CLIP 特征三档对齐和可视化。
 
 ## 11. 后续阶段
 
-1. 从官方 CLIP 导出真实图像的 Hidden State、Attention 和 Key Metric；
-2. 使用 Jittor 对真实视觉特征进行对齐；
+1. 在 AutoDL 上运行真实 CLIP 三档对齐并记录结果；
+2. 检查自然场景、OCR 和密集目标的 Token 可视化；
 3. 接入多模态 Projector 和冻结 LLM；
 4. 实现只训练 Projector 的高效微调；
 5. 对齐 Loss、效果、速度、显存和可视化；
