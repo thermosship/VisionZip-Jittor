@@ -1,0 +1,10 @@
+{
+  "projector_type": "mlp2x_gelu",
+  "vision_hidden_size": 1024,
+  "language_hidden_size": 4096,
+  "vocab_size": 128,
+  "prefix_tokens": 8,
+  "suffix_tokens": 8,
+  "learning_rate": 0.0001,
+  "seed": 2026
+}

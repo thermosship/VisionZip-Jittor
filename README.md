@@ -2,7 +2,7 @@
 
 使用 **Jittor 原生张量算子**复现 VisionZip 的视觉 Token 压缩核心，并建立可重复的 PyTorch/Jittor 数值对齐流程。
 
-> 当前进度：第一阶段与第二阶段均已完成；真实 CLIP 特征在 64/128/192 三档下通过 PyTorch/Jittor 对齐，下一阶段为多模态 Projector 与冻结 LLM 的最小端到端集成。
+> Current status: Phases 1 and 2 are complete. Phase 3A now has a native Jittor Projector, a frozen language stub, and a forward/backward smoke runner; formal 64/128/192 AutoDL validation is the next action.
 
 ## 1. 项目目标
 
@@ -288,6 +288,23 @@ pixel_values:  [3, 3, 336, 336]
 
 真实 CLIP 特征包含极近的余弦相似度 tie。普通跨框架 L2 归一化曾造成 `4 / 1536` 个 Assignment 差异。`visionzip_jittor/core.py` 现通过原生 `jt.code` CUDA Kernel 复现 PyTorch 2.1 的 64 维归约布局，并使用 `__fmul_rn`、`__fadd_rn`、`__fsqrt_rn` 和 `__fdiv_rn` 固定 float32 舍入路径；修复后 norm、normalized metric、similarity 和 Assignment 的诊断结果均达到逐元素精确一致。非 CUDA、非 float32、非 64 维或 `eps > 0` 时仍使用通用 Jittor 回退路径。
 
+### 8.8 Projector and frozen-language-stub smoke (Phase 3A)
+
+Phase 3A uses an explicitly named `FrozenLanguageStub`. It is not a real LLM; it validates token plumbing, shapes, freezing, gradient isolation, and one Projector update.
+
+Run this in the AutoDL environment while retaining the three Phase 2 real-CLIP NPZ files:
+
+```bash
+python scripts/run_phase3_projector_smoke.py \
+  --projector-config configs/phase3_projector_smoke.json \
+  --reference-dir outputs/real_clip \
+  --device cuda \
+  --output-json logs/phase3/projector_smoke.json \
+  2>&1 | tee logs/phase3/projector_smoke.log
+```
+
+The runner recomputes native Jittor VisionZip outputs, maps 1024-dimensional tokens to 4096 dimensions, packs multimodal embeddings, checks finite nonzero Projector gradients, updates Projector parameters, and verifies that frozen language parameters do not change. See [`docs/PHASE3_PROJECTOR_FROZEN_LLM.md`](docs/PHASE3_PROJECTOR_FROZEN_LLM.md) for scope and acceptance criteria.
+
 ## 9. 项目结构
 
 ```text
@@ -304,8 +321,11 @@ VisionZip-Jittor/
 ├── scripts/                    # 随机/真实特征导出、对齐、性能和可视化脚本
 ├── tests/                      # 单元测试
 └── visionzip_jittor/
-    ├── config.py
-    └── core.py                 # 原生 Jittor 核心
+    |-- config.py
+    |-- core.py                 # native Jittor VisionZip core
+    |-- projector_config.py
+    |-- projector.py            # native Jittor multimodal Projector
+    `-- multimodal.py           # frozen language stub and packing
 ```
 
 ## 10. 阶段状态
@@ -323,14 +343,20 @@ VisionZip-Jittor/
 - [x] 定位并修复真实 CLIP near-tie 的 CUDA 归一化数值路径；
 - [x] 保存第二阶段流水线摘要、逐档对齐报告和 9 张可视化。
 
-## 11. 后续阶段
+- [x] Implement the Phase 3A native Jittor Projector and multimodal packing;
+- [x] Implement the frozen-language-stub gradient isolation path;
+- [x] Add a 64/128/192 forward/backward smoke runner and tests;
+- [ ] Run Phase 3A on AutoDL RTX 4090 and save a `passed: true` report;
+- [ ] Replace the stub with a real frozen LLM in Phase 3B.
 
-1. 接入多模态 Projector 和冻结 LLM，完成最小端到端 Forward；
-2. 验证 64/128/192 三档 VisionZip 输出确实进入 Projector 与 LLM；
-3. 冻结 CLIP 和 LLM，仅允许 Projector 获得梯度，并完成一次 Backward；
-4. 记录三档输出 Shape、梯度、生成结果、Prefill 延迟和峰值显存；
-5. 最小集成通过后，再实现只训练 Projector 的高效微调；
-6. 对齐 Loss、效果、速度、显存和可视化，并整理最终 README、PPT 和视频素材。
+## 11. Next steps
+
+1. Run Phase 3A on AutoDL and require `passed: true` for 64/128/192.
+2. Preserve shape, gradient, Projector-update, and frozen-parameter evidence.
+3. Start Phase 3B by replacing `FrozenLanguageStub` with a real frozen LLM.
+4. Record real generation, prefill latency, and peak memory for all budgets.
+5. After real minimum integration passes, implement Projector-only fine-tuning.
+6. Consolidate loss, quality, speed, memory, and visualization evidence.
 
 ## 12. 许可证与声明
 
