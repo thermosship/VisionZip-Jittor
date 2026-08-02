@@ -21,6 +21,33 @@ class JittorImportTests(unittest.TestCase):
         )
         self.assertEqual(module.config.dominant_tokens, 2)
 
+    def test_generic_l2_normalize_fallback(self):
+        import jittor as jt
+
+        from visionzip_jittor.core import _l2_normalize
+
+        jt.flags.use_cuda = 0
+        values = np.array(
+            [[[3.0, 4.0, 0.0, 0.0], [1.0, 2.0, 2.0, 1.0]]],
+            dtype=np.float32,
+        )
+        actual = _l2_normalize(jt.array(values), eps=0.0).numpy()
+        expected = values / np.sqrt(
+            np.sum(values * values, axis=-1, keepdims=True)
+        )
+
+        np.testing.assert_allclose(actual, expected, atol=1e-6, rtol=1e-6)
+
+    def test_cuda_exact_helper_rejects_non_64_features(self):
+        import jittor as jt
+
+        from visionzip_jittor.core import _torch_cuda_l2_normalize_64
+
+        jt.flags.use_cuda = 0
+        values = jt.ones((1, 2, 4), dtype="float32")
+        with self.assertRaisesRegex(ValueError, r"\[B, N, 64\]"):
+            _torch_cuda_l2_normalize_64(values)
+
     def test_native_core_executes_on_small_tensor(self):
         import jittor as jt
 

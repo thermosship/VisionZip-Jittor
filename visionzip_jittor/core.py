@@ -23,6 +23,121 @@ def _batch_gather(x: jt.Var, indices: jt.Var) -> jt.Var:
     return x.gather(1, expanded)
 
 
+def _torch_cuda_l2_normalize_64(x: jt.Var) -> jt.Var:
+    """Normalize ``[B, N, 64]`` float32 tensors like PyTorch 2.1 CUDA.
+
+    VisionZip's real CLIP key features contain near-ties where ordinary
+    cross-framework reduction and division rounding can change the discrete
+    contextual-token assignment. This native Jittor CUDA path mirrors the
+    PyTorch 2.1 reduction layout for a contiguous 64-element last dimension:
+    32 lanes reduce two values each, followed by ascending warp shuffles.
+    Explicit round-to-nearest intrinsics prevent Jittor/NVCC fast-math from
+    changing the final float32 bits.
+    """
+
+    if x.ndim != 3 or int(x.shape[-1]) != 64:
+        raise ValueError("Expected a [B, N, 64] tensor")
+    if str(x.dtype) != "float32":
+        raise TypeError(
+            "PyTorch-compatible CUDA normalization requires float32"
+        )
+
+    batch = int(x.shape[0])
+    tokens = int(x.shape[1])
+    norm = jt.code(
+        (batch, tokens, 1),
+        x.dtype,
+        [x],
+        cuda_src=r'''
+__global__ static void torch_norm64_kernel(@ARGS_DEF) {
+    @PRECALC
+
+    const int lane = threadIdx.x;
+    const int output_in_block = threadIdx.y;
+    const int row = blockIdx.x * blockDim.y + output_in_block;
+    const int total_rows = in0_shape0 * in0_shape1;
+
+    if (row >= total_rows) {
+        return;
+    }
+
+    const int batch_index = row / in0_shape1;
+    const int token_index = row % in0_shape1;
+    const float value0 = @in0(batch_index, token_index, lane);
+    const float value1 = @in0(batch_index, token_index, lane + 32);
+
+    float partial0 = __fmul_rn(value0, value0);
+    float partial1 = __fmul_rn(value1, value1);
+    float sum = __fadd_rn(partial0, partial1);
+
+    #pragma unroll
+    for (int offset = 1; offset < 32; offset <<= 1) {
+        const float other = __shfl_down_sync(0xffffffffu, sum, offset);
+        sum = __fadd_rn(sum, other);
+    }
+
+    if (lane == 0) {
+        @out(batch_index, token_index, 0) = __fsqrt_rn(sum);
+    }
+}
+
+dim3 block(32, 16);
+dim3 grid((in0_shape0 * in0_shape1 + block.y - 1) / block.y);
+torch_norm64_kernel<<<grid, block>>>(@ARGS);
+''',
+    )
+
+    return jt.code(
+        x.shape,
+        x.dtype,
+        [x, norm],
+        cuda_src=r'''
+__global__ static void torch_divide64_kernel(@ARGS_DEF) {
+    @PRECALC
+
+    const int index = blockIdx.x * blockDim.x + threadIdx.x;
+    const int total = in0_shape0 * in0_shape1 * in0_shape2;
+    if (index >= total) {
+        return;
+    }
+
+    const int feature_index = index % in0_shape2;
+    const int token_linear = index / in0_shape2;
+    const int token_index = token_linear % in0_shape1;
+    const int batch_index = token_linear / in0_shape1;
+    const float numerator = @in0(batch_index, token_index, feature_index);
+    const float denominator = @in1(batch_index, token_index, 0);
+
+    @out(batch_index, token_index, feature_index) =
+        __fdiv_rn(numerator, denominator);
+}
+
+const int threads = 256;
+const int total = in0_shape0 * in0_shape1 * in0_shape2;
+const int blocks = (total + threads - 1) / threads;
+torch_divide64_kernel<<<blocks, threads>>>(@ARGS);
+''',
+    )
+
+
+def _l2_normalize(x: jt.Var, eps: float) -> jt.Var:
+    """Use exact CLIP alignment on CUDA and a portable Jittor fallback."""
+
+    if (
+        int(jt.flags.use_cuda) == 1
+        and str(x.dtype) == "float32"
+        and x.ndim == 3
+        and int(x.shape[-1]) == 64
+        and eps == 0.0
+    ):
+        return _torch_cuda_l2_normalize_64(x)
+
+    norm = (x * x).sum(dim=-1, keepdims=True).sqrt()
+    if eps > 0:
+        norm = norm.maximum(eps)
+    return x / norm
+
+
 def _ascending_values(values: jt.Var) -> jt.Var:
     """Sort each row of unique non-negative integer values ascending.
 
@@ -165,10 +280,9 @@ def visionzip_compress(
     hidden_filtered = _batch_gather(hidden_states, remaining_indices)
     metric_filtered = _batch_gather(metric, remaining_indices)
 
-    norm = (metric_filtered * metric_filtered).sum(dim=-1, keepdims=True).sqrt()
-    if config.normalization_eps > 0:
-        norm = norm.maximum(config.normalization_eps)
-    metric_normalized = metric_filtered / norm
+    metric_normalized = _l2_normalize(
+        metric_filtered, config.normalization_eps
+    )
 
     remaining_count = int(remaining_indices.shape[1])
     target_positions, merge_positions = _target_and_merge_positions(
