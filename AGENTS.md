@@ -2,9 +2,9 @@
 
 > **Purpose:** This is the authoritative cross-account handoff file for Codex agents working on this reproduction. A new agent may have no access to earlier chats. Read this file completely before modifying code, running expensive jobs, changing claims, or proposing the next phase.
 >
-> **Last authoritative update:** 2026-08-03 (Asia/Shanghai), after the corrected Phase 4B materialization completed successfully on AutoDL and the full 8,192-sample dataset passed independent integrity, attribution, digest, dimension, split, and source-shard validation.
+> **Last authoritative update:** 2026-08-03 (Asia/Shanghai), after the first frozen-feature launch failed safely before writing shards because `resolve_layer_index` received reversed positional arguments. The call now uses explicit keyword arguments locally, and all 50 Windows tests pass.
 >
-> **Current phase boundary:** Phases 1, 2, 3A, 3B, and Phase 4A are complete. **Phase 4B is in progress**. Commit `14e527f` is synchronized on Windows, GitHub, and AutoDL; the licensed 8,192-sample dataset is materialized and validated. The next blocking action is frozen CLIP/VisionZip feature precomputation in `tmux`. No Phase 4B training, held-out improvement, or caption-quality result is claimed.
+> **Current phase boundary:** Phases 1, 2, 3A, 3B, and Phase 4A are complete. **Phase 4B is in progress**. Commit `4d376c8` is synchronized on Windows, GitHub, and AutoDL; the licensed 8,192-sample dataset is materialized and validated. Frozen feature precomputation has not completed: its first launch exposed a local call-site defect, now fixed and test-validated but not yet committed/synchronized. No Phase 4B training, held-out improvement, or caption-quality result is claimed.
 
 ## 1. Mandatory instructions for every future Codex agent
 
@@ -140,7 +140,11 @@ Full dataset validation: passed=true
 Validated samples SHA256: c2b205622a67349ee22547e2648c264cd6a71979906d57cc4b59fede10e330f2
 Pinned source files: 5; recomputed source SHA256 and byte sizes all exact
 Distinct source/embedded hashes: 8,192; invalid attribution and dimension mismatches: 0
-Feature precompute: not run
+First feature-precompute launch on 4d376c8: failed before writing any shard
+Failure: resolve_layer_index received requested=-2 as num_layers and raised num_layers must be positive
+Local correction: call resolve_layer_index with explicit num_layers/requested keywords
+Windows full discovery after correction: 50 tests OK, 13 Jittor-only skips
+Feature precompute: not completed
 Training/evaluation: not implemented or run
 ```
 
@@ -853,7 +857,7 @@ Feature store: 32 expected NPZ shards of 256 samples, float32
 
 Exact next actions:
 
-1. In `tmux`, precompute all frozen CLIP/VisionZip feature shards with the pinned CLIP revision, requested layer `-2` (resolved layer 22), VisionZip budget 64, batch size 4, shard size 256, and float32 storage.
+1. Commit/push the `resolve_layer_index` call-site correction and this handoff update, fast-forward AutoDL, then relaunch frozen feature precompute in `tmux` with the pinned CLIP revision, requested layer `-2` (resolved layer 22), VisionZip budget 64, batch size 4, shard size 256, and float32 storage.
 2. Verify the completed feature manifest: 8,192 samples, exactly 32 shards, exact prepared-dataset sample order, `[N, 65, 1024]` compressed-token shape, finite floats, legal indices/assignments, and exact shard SHA256 values.
 3. Run `--verify-existing` and verify that a repeated invocation reuses complete valid shards; if practical, test that an incomplete or invalid shard is not silently reused.
 4. Implement the next source slice: gradient accumulation, warmup/scheduler, rolling/best/final checkpoint retention, exact resume, held-out target-only NLL/perplexity, BLEU-1/BLEU-4 with documented smoothing, ROUGE-L, and a deterministic generation subset.
@@ -902,5 +906,6 @@ Use the environment settings in section 4.3. Do not repeatedly delete the workin
 | 2026-08-03 | `8ac45e3` synchronized on Windows, GitHub, and AutoDL; handoff update in the following documentation commit | Installed only the pinned Phase 4B preparation dependency set required on AutoDL, passed all 50 AutoDL tests with 8 PyTorch-only skips, and passed the AutoDL no-download preflight with 210,363,502,592 free bytes versus 9,003,935,588 estimated required bytes. No external data was downloaded. | Launch the pinned 8,192-sample materialization in `tmux`, then validate the completed dataset manifest before feature precompute. |
 | 2026-08-03 | `ba8d89e` synchronized plus local dual-hash correction | Installed `tmux`, cached all five pinned Parquet sources, and ran the first execute attempt. It failed safely with 0 images because 9,576 otherwise acceptable rows had distinct row-source and embedded-JPEG SHA256 values. Real-row inspection established the two provenance digests are intentionally distinct; code/docs/tests now preserve both, reject malformed source digests, and all 50 Windows tests pass. | Commit/push/sync the correction, then rerun materialization from the completed source cache in `tmux`. |
 | 2026-08-03 | `14e527f` synchronized on Windows, GitHub, and AutoDL; dataset artifacts remain untracked | Reran the corrected materialization from the pinned cache in `tmux`; exit code was 0 and all 8,192 images were written. Independent full validation passed with 7,168/1,024 train/validation samples, sample-manifest SHA256 `c2b205622a67349ee22547e2648c264cd6a71979906d57cc4b59fede10e330f2`, all five source shard hashes/sizes exact, 8,192 distinct source/embedded digest pairs, and zero attribution or decoded-dimension errors. | Commit/push this handoff update, sync AutoDL, then precompute and verify the 32 frozen CLIP/VisionZip feature shards in `tmux`. |
+| 2026-08-03 | `4d376c8` synchronized plus local feature-precompute call-site correction | Launched `phase4b-features`; it failed safely before writing shards with `ValueError: num_layers must be positive`. Inspection found `scripts/precompute_phase4b_features.py` passed `(requested_layer_index, layer_count)` to the helper whose contract is `(num_layers, requested)`. The call now uses explicit keyword arguments; targeted tests and all 50 Windows tests pass. | Commit/push/sync the correction, then relaunch feature precompute in `tmux` and inspect the first completed shard before leaving the long job unattended. |
 
 When adding a new row, keep older rows. The newest row should state the exact commit or dirty-worktree state, the verified result, and the next blocking action.

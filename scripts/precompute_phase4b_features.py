@@ -242,8 +242,8 @@ def main() -> None:
     model.eval()
     layer_count = len(model.vision_model.encoder.layers)
     layer_index = resolve_layer_index(
-        config.features.requested_layer_index,
-        layer_count,
+        num_layers=layer_count,
+        requested=config.features.requested_layer_index,
     )
     attention_module = model.vision_model.encoder.layers[layer_index].self_attn
     visionzip_path = ROOT / config.features.visionzip_config
