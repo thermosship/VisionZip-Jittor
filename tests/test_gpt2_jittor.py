@@ -1,5 +1,7 @@
 import unittest
 
+import numpy as np
+
 try:
     import jittor as jt
 except (ImportError, OSError):
@@ -62,6 +64,59 @@ class NativeGPT2Tests(unittest.TestCase):
         mask = jt.array([[0.0, 1.0, 1.0, 1.0]])
         loss = masked_causal_language_loss(logits, ids, mask)
         self.assertTrue(float(loss.numpy().item()) > 0.0)
+
+    def test_cached_decode_matches_full_recompute(self):
+        model = self.model_class(self.config)
+        prefix = jt.array([[1, 2, 3]])
+        cached = model.forward_with_cache(input_ids=prefix)
+        self.assertEqual(len(cached["past_key_values"]), self.config.n_layer)
+        for key, value in cached["past_key_values"]:
+            self.assertEqual(list(key.shape), [1, 4, 3, 4])
+            self.assertEqual(list(value.shape), [1, 4, 3, 4])
+
+        next_id = jt.array([[4]])
+        decoded = model.forward_with_cache(
+            input_ids=next_id,
+            past_key_values=cached["past_key_values"],
+        )
+        full = model(input_ids=jt.array([[1, 2, 3, 4]]))
+        np.testing.assert_allclose(
+            decoded["logits"].numpy()[:, -1, :],
+            full.numpy()[:, -1, :],
+            atol=1e-5,
+            rtol=1e-5,
+        )
+        for key, value in decoded["past_key_values"]:
+            self.assertEqual(list(key.shape), [1, 4, 4, 4])
+            self.assertEqual(list(value.shape), [1, 4, 4, 4])
+
+    def test_cached_greedy_matches_uncached_greedy(self):
+        from visionzip_jittor.gpt2 import (
+            greedy_generate_from_embeddings,
+            greedy_generate_from_embeddings_cached,
+        )
+
+        model = self.model_class(self.config)
+        initial = model.embed_tokens(jt.array([[1, 2, 3]]))
+        expected = greedy_generate_from_embeddings(
+            model,
+            initial,
+            max_new_tokens=5,
+        )
+        actual = greedy_generate_from_embeddings_cached(
+            model,
+            initial,
+            max_new_tokens=5,
+        )
+        self.assertEqual(actual, expected)
+
+    def test_cache_layer_count_is_validated(self):
+        model = self.model_class(self.config)
+        with self.assertRaisesRegex(ValueError, "layer count"):
+            model.forward_with_cache(
+                input_ids=jt.array([[1]]),
+                past_key_values=[],
+            )
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
 
 使用 **Jittor 原生张量算子**复现 VisionZip 的视觉 Token 压缩核心，并建立可重复的 PyTorch/Jittor 数值对齐流程。
 
-> Current status: **Phases 1, 2, 3A, 3B, 4A, and 4B are complete.** Phase 4B passed its benchmark-instrumented CUDA acceptance run and its 45-file final v2 evidence archive was copied to Windows with a matching cross-host SHA256. The 8,192-sample licensed pilot, 32 frozen feature shards, exact resume path, 1,344-step Projector-only training, held-out metrics, post-warm-up throughput, and current-process peak GPU memory are all recorded.
+> Current status: **Phases 1, 2, 3A, 3B, 4A, and 4B are complete; Phase 5A is in progress.** Native Jittor GPT-2 now has a per-layer KV-cache decode path, cached/uncached correctness tests, and a versioned real-CLIP/Phase-4B-Projector benchmark runner. A reduced RTX 4090 smoke passed; the clean-commit formal 64/128/192 benchmark and Phase 5A evidence archive are still pending.
 
 ## 1. 项目目标
 
@@ -34,7 +34,8 @@ Completed scope includes Phases 1, 2, 3A, 3B, 4A, and 4B:
 - Phase 4A versioned paired manifests, deterministic splits, and target-only causal masks;
 - repeated Projector-only training on precomputed real CLIP/VisionZip tokens, JSONL metrics, complete Projector/Adam checkpoints, and resume.
 - Phase 4B pinned licensed-data configuration, deterministic 7,168/1,024 split, row-level attribution records, storage preflight, and 32 verified frozen-feature shards;
-- 1,344-step real paired Projector-only training with exact frozen-GPT-2 invariants, checkpoint resume, full held-out NLL/perplexity, deterministic single-reference BLEU/ROUGE, and accepted post-warm-up throughput/peak-memory evidence.
+- 1,344-step real paired Projector-only training with exact frozen-GPT-2 invariants, checkpoint resume, full held-out NLL/perplexity, deterministic single-reference BLEU/ROUGE, and accepted post-warm-up throughput/peak-memory evidence;
+- native Jittor GPT-2 per-layer KV-cache prefill/decode, cached-versus-uncached greedy correctness checks, and a reproducible Phase 5A latency/memory runner.
 
 ## 2. 上游版本与复现范围
 
@@ -49,7 +50,7 @@ Snapshot date: 2026-08-01
 
 详细版本记录见 [`references/UPSTREAM.md`](references/UPSTREAM.md)，第一阶段数值结果见 [`docs/PHASE1_RESULTS.md`](docs/PHASE1_RESULTS.md)，第二阶段真实 CLIP 实测结果见 [`docs/PHASE2_REAL_CLIP.md`](docs/PHASE2_REAL_CLIP.md)，Phase 3A Projector smoke 见 [`docs/PHASE3_PROJECTOR_FROZEN_LLM.md`](docs/PHASE3_PROJECTOR_FROZEN_LLM.md)，Phase 3B 真实 GPT-2 结果见 [`docs/PHASE3B_REAL_GPT2.md`](docs/PHASE3B_REAL_GPT2.md)。 Phase 4A paired-training results are in [`docs/PHASE4A_PAIRED_TRAINING.md`](docs/PHASE4A_PAIRED_TRAINING.md).
 
-Phase 4B dataset/licensing policy is fixed in [`docs/PHASE4B_DATASET_PLAN.md`](docs/PHASE4B_DATASET_PLAN.md), and the executed training, held-out metrics, benchmark evidence, integrity checks, and claim boundary are recorded in [`docs/PHASE4B_REAL_PAIRED_TRAINING.md`](docs/PHASE4B_REAL_PAIRED_TRAINING.md).
+Phase 4B dataset/licensing policy is fixed in [`docs/PHASE4B_DATASET_PLAN.md`](docs/PHASE4B_DATASET_PLAN.md), and the executed training, held-out metrics, benchmark evidence, integrity checks, and claim boundary are recorded in [`docs/PHASE4B_REAL_PAIRED_TRAINING.md`](docs/PHASE4B_REAL_PAIRED_TRAINING.md). Phase 5A KV-cache scope, fixed artifacts, correctness gates, and benchmark protocol are defined in [`docs/PHASE5A_KV_CACHE_PLAN.md`](docs/PHASE5A_KV_CACHE_PLAN.md).
 
 本仓库没有复制官方 LLaVA 模型代码。`reference/pytorch_visionzip.py` 是为了框架数值对齐而编写的独立参考模块。
 
@@ -380,6 +381,31 @@ After 67 warm-up updates, steps 68-1,344 averaged `120.37183717184918 ms` per op
 
 The deterministic 128-sample generated-caption subset recorded BLEU-1 `0.28304947283049475`, add-one-smoothed BLEU-4 `0.05727683512769526`, and ROUGE-L `0.26176086973563917`. These use one BLIP-2 synthetic reference per image, are not directly comparable with multi-reference COCO metrics, and do not establish high-quality captioning. Full details are in [`docs/PHASE4B_REAL_PAIRED_TRAINING.md`](docs/PHASE4B_REAL_PAIRED_TRAINING.md). Final evidence archive: `VisionZip-Jittor-phase4b-evidence-final-v2-20260803.tar.gz`, SHA256 `2EFEEAA88F18AB11B8431A7DD810B296366073D14B5717D02C72152DBA70C032` (45 files). AutoDL and Windows hashes match; the earlier `VisionZip-Jittor-phase4b-evidence-20260803.tar.gz` remains preserved.
 
+
+### 8.13 Phase 5A native Jittor GPT-2 KV-cache generation (in progress)
+
+Phase 5A adds a per-layer GPT-2 key/value cache with shape `[batch, heads, cached_tokens, head_dim]`, cached position IDs, cached causal masking, cache validation, and greedy generation from packed multimodal embeddings. The original full-recompute generation path remains unchanged and serves as the correctness oracle.
+
+The versioned runner [`scripts/run_phase5a_kv_cache.py`](scripts/run_phase5a_kv_cache.py), configured by [`configs/phase5a_kv_cache.json`](configs/phase5a_kv_cache.json), binds together the real GPT-2 artifact, the completed Phase 4B Projector checkpoint, and the three Phase 2 real-CLIP references. It verifies artifact hashes and checkpoint provenance, requires cached/uncached token IDs to match exactly, checks every generation-step logit at `atol=rtol=1e-5`, validates final cache shapes, freezes and hashes both GPT-2 and Projector, and measures prefill, decode-only, cached-total, uncached-total, tokens/s, speedup, and current-process peak GPU memory.
+
+Development validation on the AutoDL RTX 4090 currently includes:
+
+| Check | Result |
+|---|---:|
+| Focused native GPT-2 tests | `8 passed` |
+| Full AutoDL discovery after decode-only timing fix | `63 passed, 8 skipped` (retry 2) |
+| Reduced runner smoke | `passed: true` |
+| Smoke scope | budget `64`, sample `0`, `2` generated tokens, `1` measured run |
+| Cached/uncached token IDs | exact |
+| Per-step logits | allclose at `1e-5` |
+| Final cache shape | `[1,12,78,64]` for all 12 layers |
+| Cached prefill / decode-only | `4.1622 ms` / `7.3734 ms` |
+| Cached total / uncached total | `15.9335 ms` / `18.7474 ms` |
+| Smoke uncached-over-cached speedup | `1.17660x` |
+| Smoke peak process GPU memory | `1122 MiB` |
+
+These numbers are only the corrected reduced implementation smoke (`retry2`) and were produced before the Phase 5A source commit. An earlier passing smoke incorrectly included prefill inside its decode-only timing; that log is retained, and the runner now constructs the initial cache outside the decode-only timer. After this timing correction, a fresh full AutoDL discovery passed 63 tests with 8 environment-only skips on retry 2. The first pure-LF retry encountered the repository's previously observed intermittent Jittor process segfault in the Phase 3 projector backpropagation test; the isolated test then passed 2/2 before the full retry succeeded. All logs are preserved. They are not the formal benchmark. Phase 5A remains incomplete until the implementation is committed and synchronized, the full `64/128/192 x 3 samples x 32 tokens x 10 measured runs` benchmark completes from a clean commit under `tmux`, final documentation is written, and a cross-host verified evidence archive is created. Phase 5A validates decode correctness and runtime behavior; it does **not** claim improved caption quality.
+
 ## 9. 项目结构
 
 ```text
@@ -441,12 +467,18 @@ VisionZip-Jittor/
 - [x] Pin the Phase 4B CommonCatalog CC-BY revision, five pilot shards, exact 8,192-sample target, attribution policy, deterministic split, and disk estimate;
 - [x] Implement Phase 4B preparation/preflight and hashed sharded feature infrastructure with unit tests;
 - [x] Run Phase 4B preflight on AutoDL, materialize the licensed pilot subset, and precompute all 32 frozen feature shards;
-- [x] Implement and run Phase 4B gradient-accumulated training plus held-out evaluation and benchmark instrumentation.
+- [x] Implement and run Phase 4B gradient-accumulated training plus held-out evaluation and benchmark instrumentation;
+- [x] Define the Phase 5A KV-cache scope, fixed artifacts, tolerances, and benchmark protocol;
+- [x] Implement native Jittor GPT-2 KV caching, cached greedy decoding, focused tests, and the formal runner;
+- [x] Pass the reduced real-artifact Phase 5A runner smoke and full 63-test AutoDL discovery;
+- [ ] Commit/synchronize Phase 5A, run the full clean-commit benchmark, publish final results, and verify the evidence archive.
 
 ## 11. Next steps
 
-1. Preserve the completed Phase 4B source, generated artifacts, both evidence archives, and the documented single-reference claim boundary.
-2. Define the next phase in a separate versioned plan before implementing or launching expensive work. Candidate directions include synchronized repeated performance runs, mixed precision, KV-cache generation, a larger frozen LLM, and evaluation against a compatible licensed multi-reference set. None is implied by the Phase 4B result.
+1. Review and explicitly stage the Phase 5A source/config/test/document files, commit them, push GitHub, and fast-forward AutoDL to the same clean commit.
+2. Run the formal Phase 5A benchmark under `tmux` with the checked-in configuration and preserve the JSON, console log, exit code, source commit, timestamps, and GPU snapshot.
+3. Audit all 64/128/192 sample results, update the Phase 5A document and this README with measured values, then build and cross-host verify a versioned evidence archive.
+4. Preserve the Phase 4B single-reference quality boundary: Phase 5A is a generation-correctness and performance phase, not a caption-quality claim.
 
 ## 12. 许可证与声明
 
