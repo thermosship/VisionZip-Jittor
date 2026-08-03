@@ -2,7 +2,7 @@
 
 使用 **Jittor 原生张量算子**复现 VisionZip 的视觉 Token 压缩核心，并建立可重复的 PyTorch/Jittor 数值对齐流程。
 
-> Current status: Phases 1, 2, and Phase 3A are complete. Phase 3B native Jittor GPT-2 code, artifact export, real generation, Projector-only backward, and measurement runner are implemented; formal AutoDL CUDA validation is pending.
+> Current status: Phases 1, 2, 3A, and the minimum Phase 3B real-LLM integration are complete. Native Jittor GPT-2 passed the full AutoDL CUDA smoke report for 64/128/192 with top-level `real_llm: true` and `passed: true` on 2026-08-03.
 
 ## 1. 项目目标
 
@@ -15,7 +15,7 @@
 - 仅训练多模态 Projector 的高效微调；
 - 训练、测试、性能和可视化日志。
 
-当前仓库已完成第一阶段与第二阶段，已经实现：
+当前仓库已完成 Phase 1、Phase 2、Phase 3A 和 Phase 3B 最小真实 LLM 接入验证，已经实现：
 
 - 原生 Jittor VisionZip 核心；
 - 独立 PyTorch 参考实现；
@@ -27,7 +27,10 @@
 - 真实特征的一键 PyTorch/Jittor 对齐流水线；
 - Dominant Token 与 Contextual Merge 可视化；
 - 面向 CLIP 64 维 Key Metric 的 PyTorch 2.1 CUDA 精确归一化路径；
-- 真实 CLIP 特征在 64/128/192 三档下的逐项对齐与 9 张 Token 可视化。
+- 真实 CLIP 特征在 64/128/192 三档下的逐项对齐与 9 张 Token 可视化；
+- 原生 Jittor `1024 -> 768 -> 768` Projector、真实多模态 embedding packing 与 Projector-only 优化；
+- 原生 Jittor GPT-2 small（124M）12 层因果 Transformer、权重加载、冻结校验和真实解码；
+- 64/128/192 三档真实 CLIP → VisionZip → Projector → GPT-2 路径的 CUDA 验收。
 
 ## 2. 上游版本与复现范围
 
@@ -40,7 +43,7 @@ Commit: 8f86b55c6f000eb033e6912538af2dd7dcb30502
 Snapshot date: 2026-08-01
 ```
 
-详细版本记录见 [`references/UPSTREAM.md`](references/UPSTREAM.md)，第一阶段数值结果见 [`docs/PHASE1_RESULTS.md`](docs/PHASE1_RESULTS.md)，第二阶段真实 CLIP 实测结果与运行说明见 [`docs/PHASE2_REAL_CLIP.md`](docs/PHASE2_REAL_CLIP.md)。
+详细版本记录见 [`references/UPSTREAM.md`](references/UPSTREAM.md)，第一阶段数值结果见 [`docs/PHASE1_RESULTS.md`](docs/PHASE1_RESULTS.md)，第二阶段真实 CLIP 实测结果见 [`docs/PHASE2_REAL_CLIP.md`](docs/PHASE2_REAL_CLIP.md)，Phase 3A Projector smoke 见 [`docs/PHASE3_PROJECTOR_FROZEN_LLM.md`](docs/PHASE3_PROJECTOR_FROZEN_LLM.md)，Phase 3B 真实 GPT-2 结果见 [`docs/PHASE3B_REAL_GPT2.md`](docs/PHASE3B_REAL_GPT2.md)。
 
 本仓库没有复制官方 LLaVA 模型代码。`reference/pytorch_visionzip.py` 是为了框架数值对齐而编写的独立参考模块。
 
@@ -321,11 +324,19 @@ The 64-budget forward/backward values include first-use JIT/graph compilation (`
 
 ### 8.10 Phase 3B real frozen GPT-2 integration
 
-Phase 3B now has an initial real-LLM implementation based on GPT-2 small. Unlike the Phase 3A stub, this path executes real token embeddings, learned positional embeddings, 12 causal Transformer blocks, final LayerNorm, and the tied GPT-2 LM head in native Jittor. The model hidden size is 768, so the Phase 3B Projector maps `1024 -> 768 -> 768`.
+Phase 3B replaces the Phase 3A stub with GPT-2 small and executes real token embeddings, learned positional embeddings, 12 causal Transformer blocks, final LayerNorm, and the tied LM head in native Jittor. The Projector maps `1024 -> 768 -> 768` and is the only optimized module.
 
-The implementation includes a Hugging Face float32 weight/tokenizer exporter, deterministic text-logit reference, checksums for weights/config/tokenizer/reference, native tensor-count and parameter-count integrity checks, a native NPZ weight loader, real causal language loss, Projector-only optimizer step, full frozen-language SHA256 verification, greedy decoded text, warmed repeated prefill timing, and sampled process GPU memory. See [`docs/PHASE3B_REAL_GPT2.md`](docs/PHASE3B_REAL_GPT2.md).
+Formal AutoDL validation completed on **2026-08-03** using an NVIDIA GeForce RTX 4090. The final report records `real_llm: true`, top-level `passed: true`, exact artifact/model integrity checks, aligned text-only logits, frozen and unchanged GPT-2 weights, and passing 64/128/192 results.
 
-The code is implemented but is **not yet recorded as Phase 3B complete**. Completion requires running the AutoDL CUDA procedure and saving a top-level `real_llm: true`, `passed: true` report for 64/128/192. Generated text before Projector training is execution evidence only, not a visual-language quality result.
+| Budget | VisionZip output | Projector output | Packed embeddings | Loss | Phase 2 max abs | Prefill mean (ms) | Peak GPU MiB | Result |
+|---:|---|---|---|---:|---:|---:|---:|---|
+| 64 | `[3,65,1024]` | `[3,65,768]` | `[3,78,768]` | `9.202743` | `5.72205e-06` | `13.4518` | 1550 | PASS |
+| 128 | `[3,129,1024]` | `[3,129,768]` | `[3,142,768]` | `8.336858` | `1.90735e-06` | `8.6873` | 1896 | PASS |
+| 192 | `[3,193,1024]` | `[3,193,768]` | `[3,206,768]` | `8.949780` | `1.90735e-06` | `10.3456` | 2350 | PASS |
+
+The Hugging Face/Jittor text-logit maximum absolute error was `2.13623e-04` at `atol=rtol=5e-4`. For every budget, compressed tokens were allclose, assignments were exact, the optimizer scope was Projector-only, all four Projector tensors received finite nonzero gradients, Projector parameters changed, and all 124,439,808 GPT-2 parameters remained stop-grad and SHA256-identical before/after the update. Five native Jittor GPT-2 unit tests also passed.
+
+The timings are smoke-run observations rather than a synchronized production benchmark. Generated strings prove real GPT-2 execution and tokenizer decoding only; the randomly initialized Projector received one update and has not been trained for visual-language quality. Full results and limits are documented in [`docs/PHASE3B_REAL_GPT2.md`](docs/PHASE3B_REAL_GPT2.md).
 
 ## 9. 项目结构
 
@@ -373,15 +384,14 @@ VisionZip-Jittor/
 - [x] Run Phase 3A on AutoDL RTX 4090 and save a `passed: true` report;
 - [x] Implement native Jittor GPT-2 blocks, tied LM head, weight loading, and tokenizer artifacts;
 - [x] Implement Phase 3B Projector-only loss/backward, real generation, prefill timing, and memory sampling;
-- [ ] Run the Phase 3B real GPT-2 path on AutoDL for 64/128/192 and save a `real_llm: true`, `passed: true` report.
+- [x] Run the Phase 3B real GPT-2 path on AutoDL for 64/128/192 and save a `real_llm: true`, `passed: true` report.
 
 ## 11. Next steps
 
-1. Export the GPT-2 float32 NPZ, tokenizer, config, manifest, and deterministic PyTorch logit reference on AutoDL.
-2. Run native Jittor GPT-2 unit tests and fix any environment-specific Jittor operator/API differences.
-3. Validate budget 64 first, including text-logit alignment, real generation, freezing, and Projector gradients.
-4. Run the full 64/128/192 Phase 3B report and archive JSON/log evidence with SHA256.
-5. Only after the minimum real-LLM integration passes, implement Projector training, KV cache, mixed precision, and downstream evaluation.
+1. Train the `1024 -> 768 -> 768` Projector on paired vision-language data instead of evaluating a one-step random initialization.
+2. Add downstream captioning/VQA evaluation with reproducible datasets and quality metrics.
+3. Add KV cache, synchronized latency measurement, longer warm-up, mixed precision, and production-oriented memory profiling.
+4. After the native GPT-2 path and training pipeline are stable, evaluate a larger frozen language model without weakening the Projector-only optimization boundary.
 
 ## 12. 许可证与声明
 
