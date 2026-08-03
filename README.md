@@ -2,7 +2,7 @@
 
 使用 **Jittor 原生张量算子**复现 VisionZip 的视觉 Token 压缩核心，并建立可重复的 PyTorch/Jittor 数值对齐流程。
 
-> Current status: **Phases 1, 2, 3A, 3B, 4A, and 4B are complete; Phase 5A formal acceptance has passed and evidence finalization is in progress.** Native Jittor GPT-2 KV-cache generation passed the clean-commit acceptance-v3 protocol at `7227717`: exact greedy IDs, exact cache contracts, and the frozen per-step total-variation bound passed all 9/9 budget/sample cases; GPT-2 and Projector remained frozen and hash-unchanged. The global maximum TV was `3.505422367609121e-05` under the frozen `5e-5` bound. Final documentation and a cross-host verified evidence archive remain before Phase 5A is marked complete.
+> Current status: **Phases 1, 2, 3A, 3B, 4A, 4B, and 5A are complete. Phase 5B scope is not yet frozen.** Native Jittor GPT-2 KV-cache generation passed the clean-commit acceptance-v3 protocol at `7227717`: exact greedy IDs, exact cache contracts, and the frozen per-step total-variation bound passed all 9/9 budget/sample cases; GPT-2 and Projector remained frozen and hash-unchanged. The cross-host verified evidence archive `VisionZip-Jittor-phase5a-evidence-20260803.tar.gz` contains 112 internally checksummed entries and has SHA256 `20093fb7550d6e17fc96566191236bc3631952998a5d4097d245ae1f2037ec81` on both AutoDL and Windows.
 
 ## 1. 项目目标
 
@@ -416,6 +416,8 @@ The formal diagnostics intentionally still show that raw-logit allclose passed o
 
 Phase 5A validates generation decisions, cache behavior, distribution-level alignment, and runtime measurements; it does **not** claim raw-logit bitwise/strict-`1e-5` equality, improved caption quality, or universal speedup. Full protocol, preserved failures, diagnosis, and claim boundaries are in [`docs/PHASE5A_KV_CACHE_PLAN.md`](docs/PHASE5A_KV_CACHE_PLAN.md).
 
+Phase 5A is formally complete. `VisionZip-Jittor-phase5a-evidence-20260803.tar.gz` was built on AutoDL from the synchronized formal-result documentation state, includes all 112 non-checksum files in its internal `SHA256SUMS`, passed an independent unpacked `sha256sum -c SHA256SUMS` verification (`112/112`), and is `521499` bytes. Its outer SHA256 is `20093fb7550d6e17fc96566191236bc3631952998a5d4097d245ae1f2037ec81` on both AutoDL and Windows. Large model weights, CLIP reference NPZs, checkpoints, tokenizers, datasets, and feature shards are intentionally excluded; their identities are recorded in the formal result provenance.
+
 ## 9. 项目结构
 
 ```text
@@ -484,15 +486,14 @@ VisionZip-Jittor/
 - [x] Commit/synchronize Phase 5A v1 and preserve the first clean formal benchmark plus numerical diagnostics;
 - [x] Implement and validate acceptance v3 with a passing 9-sample dirty smoke under a new namespace;
 - [x] Commit/synchronize acceptance v3 and pass clean-commit tests plus the full 64/128/192 formal protocol;
-- [ ] Build and cross-host verify the Phase 5A evidence archive, record its SHA256, and mark the phase complete.
+- [x] Build and cross-host verify the Phase 5A evidence archive, record its SHA256, and mark the phase complete.
 
 ## 11. Next steps
 
-1. Update the final Phase 5A result documentation and authoritative handoff with commit `7227717` measurements.
-2. Build a versioned Phase 5A evidence archive containing the formal JSON/log/metadata, clean-test evidence, preserved v1/v2/v3 failure and diagnosis logs, reviewed source/config/tests/docs, and an internal `SHA256SUMS`.
-3. Verify the archive and internal checksums on AutoDL, copy it to Windows, and confirm AutoDL/Windows SHA256 equality.
-4. Record the verified archive filename/hash, commit/push/synchronize the completion documentation, and only then mark Phase 5A complete or begin Phase 5B.
-5. Preserve the Phase 4B single-reference quality boundary: Phase 5A is a generation-correctness and performance phase, not a caption-quality claim.
+1. Preserve the completed Phase 5A archive, its `112/112` internal checksum result, matching cross-host outer SHA256, formal `kv_cache_benchmark_7227717.*` namespace, and all historical failure/diagnosis logs.
+2. Design and document a bounded Phase 5B scope before changing implementation code: freeze its objective, artifacts, acceptance gates, non-goals, resource estimate, and evidence plan.
+3. Do not inherit Phase 5A's `5e-5` TV threshold or speed measurements into a different model/runtime protocol without a new versioned numerical contract.
+4. Preserve the Phase 4B single-reference quality boundary: Phase 5A proves generation correctness and pinned-environment performance, not caption-quality improvement.
 
 ## 12. 许可证与声明
 

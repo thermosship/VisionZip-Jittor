@@ -220,7 +220,21 @@ Performance and process-memory observations:
 
 The clean synchronized AutoDL source also passed full unittest discovery: `74` tests with `8` environment-only skips. Formal result files use `logs/phase5a/kv_cache_benchmark_7227717.*`; earlier v1/v2/v3 dirty and failed namespaces remain preserved.
 
-## 10. Claim boundary
+## 10. Evidence archive and completion
+
+Phase 5A evidence was finalized as `VisionZip-Jittor-phase5a-evidence-20260803.tar.gz`. The archive contains the reviewed Phase 5A source/config/tests/docs, the complete `logs/phase5a` history (including failed and dirty attempts), formal `kv_cache_benchmark_7227717.*` evidence, clean-test evidence, Git/environment metadata, and an internal `SHA256SUMS`.
+
+```text
+checksummed entries:       112
+independent unpack verify: 112 / 112 OK
+archive size:              521499 bytes
+AutoDL outer SHA256:       20093fb7550d6e17fc96566191236bc3631952998a5d4097d245ae1f2037ec81
+Windows outer SHA256:      20093fb7550d6e17fc96566191236bc3631952998a5d4097d245ae1f2037ec81
+```
+
+The archive intentionally excludes GPT-2 weights, CLIP reference NPZs, Projector checkpoints, tokenizers, datasets, and feature shards. Their identities and provenance are already recorded in the formal JSON, so excluding them keeps the evidence package reviewable without weakening artifact traceability. Matching internal verification and cross-host outer hashes close the Phase 5A evidence requirement.
+
+## 11. Claim boundary
 
 Phase 5A may establish exact greedy decisions, exact cache-contract behavior, probability-level cached/full-recompute alignment, and reproducible latency/throughput/memory measurements for the pinned RTX 4090 environment.
 
@@ -235,7 +249,7 @@ It must disclose the strict raw-logit diagnostics and the matching PyTorch CUDA 
 
 The Phase 4B quality boundary remains unchanged: its single BLIP-2 synthetic reference metrics are not directly comparable with multi-reference COCO numbers.
 
-## 11. Completion checklist
+## 12. Completion checklist
 
 - [x] Implement per-layer native Jittor GPT-2 KV cache.
 - [x] Preserve and test the uncached execution path.
@@ -252,10 +266,10 @@ The Phase 4B quality boundary remains unchanged: its single BLIP-2 synthetic ref
 - [x] Run all tests from the new clean synchronized commit on AutoDL: 74 tests, 8 skips.
 - [x] Run the acceptance-v3 formal protocol in `tmux` under `kv_cache_benchmark_7227717.*`.
 - [x] Audit all 9 sample reports, source/tracked status, model invariants, timings, memory, and provenance fields.
-- [ ] Build the Phase 5A evidence archive and verify matching AutoDL/Windows SHA256 values.
+- [x] Build the Phase 5A evidence archive and verify matching AutoDL/Windows SHA256 values: 112/112 internal entries and matching outer SHA256.
 - [x] Update this document and README with the passing formal result.
-- [ ] Record the final archive filename/hash and mark Phase 5A complete.
+- [x] Record `VisionZip-Jittor-phase5a-evidence-20260803.tar.gz` and SHA256 `20093fb7550d6e17fc96566191236bc3631952998a5d4097d245ae1f2037ec81`; Phase 5A is complete.
 
-## 12. Immediate next action
+## 13. Immediate next action
 
-Commit and synchronize the final result documentation, then build the Phase 5A evidence archive with internal `SHA256SUMS`. Include the clean-test and formal `kv_cache_benchmark_7227717.*` evidence plus the preserved v1/v2/v3 failures and diagnostics, but exclude large model weights, CLIP reference NPZ files, checkpoints, and other generated artifacts that are already identified by hashes in the report. Verify internal checksums on AutoDL, copy the archive to Windows, verify the outer SHA256 on both hosts, record it here/README/AGENTS.md, and only then mark Phase 5A complete.
+Phase 5A is complete. Before implementing Phase 5B, write and review a versioned scope document that freezes the next objective, source artifacts, numerical/semantic acceptance contract, required tests, benchmark protocol, resource estimate, evidence archive contents, and explicit non-claims. Do not modify the Phase 5A archive or overwrite any of its historical log namespaces.

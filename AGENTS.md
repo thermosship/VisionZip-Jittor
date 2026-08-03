@@ -2,9 +2,9 @@
 
 > **Purpose:** This is the authoritative cross-account handoff file for Codex agents working on this reproduction. A new agent may have no access to earlier chats. Read this file completely before modifying code, running expensive jobs, changing claims, or proposing the next phase.
 >
-> **Last authoritative update:** 2026-08-03 (Asia/Shanghai), after the first clean-commit Phase 5A formal run from `6d3ba71`. The implementation, config, tests, and runner are committed and synchronized. The formal run preserved exact greedy token IDs for all 9/9 budget/sample cases, exact cache structure, frozen/hash-unchanged GPT-2 and Projector invariants, and speedup above 1 for every budget, but top-level `passed=false` because raw cached/full-recompute logits exceeded the original strict `atol=rtol=1e-5` diagnostic on long sequences. A PyTorch 2.1.2 CUDA baseline reproduced the same class of raw-logit drift. Phase 5A acceptance is now being redesigned explicitly--not silently weakened--to retain the raw-logit diagnostic while gating correctness on exact IDs, exact cache structure, and softmax-probability allclose at `1e-5`.
+> **Last authoritative update:** 2026-08-03 (Asia/Shanghai), after Phase 5A acceptance-v3 formal validation and evidence finalization. Formal source commit `7227717` passed all 9/9 exact greedy-ID, exact cache-contract, and frozen per-step TV (`<=5e-5`) gates; clean AutoDL discovery passed 74 tests with 8 skips. `VisionZip-Jittor-phase5a-evidence-20260803.tar.gz` contains 112 internally checksummed entries, independently verified 112/112 after unpacking, and has matching AutoDL/Windows SHA256 `20093fb7550d6e17fc96566191236bc3631952998a5d4097d245ae1f2037ec81`. Formal-result documentation commit `dc1326f` is synchronized; the current documentation update records final completion.
 >
-> **Current phase boundary:** **Phases 1, 2, 3A, 3B, 4A, and 4B are complete. Phase 5A is in progress.** Phase 5A is strictly scoped to native Jittor GPT-2 KV-cache autoregressive generation correctness and reproducible decode performance. It uses the completed Phase 4B Projector and Phase 2 real-CLIP references without retraining. It must not be described as caption-quality improvement.
+> **Current phase boundary:** **Phases 1, 2, 3A, 3B, 4A, 4B, and 5A are complete. Phase 5B has not yet been scoped.** Do not begin Phase 5B implementation until a versioned plan freezes its objective, artifacts, acceptance contract, benchmark protocol, resources, evidence requirements, and non-claims. Phase 5A must not be described as caption-quality improvement, raw-logit bitwise equality, universal strict-`1e-5` equality, or universal speedup.
 
 ## 1. Mandatory instructions for every future Codex agent
 
@@ -1152,40 +1152,30 @@ It does **not** yet prove:
 
 The fresh Phase 4A validation loss increased from `7.54148` to `7.75218`, and the generated validation text was poor. Retain both facts in future reports. They do not invalidate the infrastructure acceptance result, but they prohibit any visual-language quality claim.
 
-## 11. Next exact actions -- PHASE 5A EVIDENCE FINALIZATION
+## 11. Next exact actions -- PHASE 5B SCOPE DESIGN
 
-Acceptance-v3 source commit `72277174069b9cef63831529f3ef2e3e16965cd1` is synchronized on Windows, GitHub, and AutoDL. Clean AutoDL discovery passed 74 tests with 8 skips. The full 64/128/192 x 3-sample formal benchmark ran with 32 new tokens, 3 warmups, and 10 measured runs from an empty tracked diff and recorded top-level `passed=true`.
-
-Formal correctness envelope:
+Phase 5A is complete. Acceptance-v3 source commit `72277174069b9cef63831529f3ef2e3e16965cd1` passed clean AutoDL tests and the full 64/128/192 x 3-sample formal protocol. The evidence archive is finalized:
 
 ```text
-exact greedy token sequences: 9 / 9
-exact cache contracts:        9 / 9
-TV within frozen 5e-5 bound:  9 / 9
-global maximum TV:            3.505422367609121e-05
-GPT-2 frozen/unchanged:       true / true
-Projector frozen/unchanged:   true / true
-invariants_passed:            true
+archive:                  VisionZip-Jittor-phase5a-evidence-20260803.tar.gz
+checksummed entries:      112
+independent unpack check: 112 / 112 OK
+size:                     521499 bytes
+AutoDL SHA256:            20093fb7550d6e17fc96566191236bc3631952998a5d4097d245ae1f2037ec81
+Windows SHA256:           20093fb7550d6e17fc96566191236bc3631952998a5d4097d245ae1f2037ec81
 ```
 
-Formal performance:
-
-| Budget | Prefill | Decode-only | Cached total | Uncached total | Speedup | Peak GPU |
-|---:|---:|---:|---:|---:|---:|---:|
-| 64 | 3.2958 ms | 235.2201 ms | 240.8540 ms | 243.3399 ms | 1.01032x | 1168 MiB |
-| 128 | 3.3615 ms | 236.9930 ms | 241.4139 ms | 255.4643 ms | 1.05820x | 1250 MiB |
-| 192 | 3.7474 ms | 231.5706 ms | 241.0673 ms | 290.8731 ms | 1.20661x | 1322 MiB |
+The archive preserves all Phase 5A formal, dirty, failed, and diagnostic namespaces while intentionally excluding large model/data artifacts whose SHA256/provenance are already recorded in the formal JSON.
 
 Exact next actions:
 
-1. Preserve all v1/v2/v3 dirty/failure/diagnosis/test-retry logs and the formal `kv_cache_benchmark_7227717.*` namespace.
-2. Commit/push/synchronize the formal-result documentation changes.
-3. Build a versioned Phase 5A evidence archive with internal `SHA256SUMS`; include reviewed source/config/tests/docs, clean-test logs, formal logs/JSON/metadata, and preserved numerical diagnosis/failure logs. Exclude model weights, CLIP reference NPZs, checkpoints, tokenizer artifacts, and datasets; their identities are already hashed in the formal JSON.
-4. Verify the archive internally on AutoDL, copy it to Windows, and verify the outer SHA256 on both hosts.
-5. Record the archive filename, entry count, and matching SHA256 in README, `docs/PHASE5A_KV_CACHE_PLAN.md`, and this handoff; commit/push/synchronize the completion state.
-6. Only then mark Phase 5A complete or begin Phase 5B.
+1. Preserve the archive and all existing `logs/phase5a` namespaces; never overwrite or retroactively relabel failed v1/v2/v3 attempts.
+2. Do not start Phase 5B code changes until `docs/PHASE5B_*.md` freezes a bounded objective, inputs/artifacts, acceptance gates, numerical tolerances, tests, benchmark method, resource estimate, evidence archive plan, and non-goals.
+3. Decide explicitly whether Phase 5B targets batching, a larger frozen LLM, mixed precision, or another runtime capability. Do not combine multiple major axes in one acceptance milestone without separate gates.
+4. Treat Phase 5A's `5e-5` TV bound and RTX 4090 timings as protocol-specific evidence, not inherited universal thresholds or performance promises.
+5. Continue updating this file after every material decision, failure, run, commit, evidence package, and phase transition.
 
-Current claim boundary: Phase 5A proves exact greedy decisions and cache-contract correctness for the pinned real GPT-2/Projector/Phase-2-reference protocol, distribution-level alignment under the frozen `5e-5` TV gate, and reports pinned-device runtime/memory measurements. It discloses raw/centered/coordinatewise drift and the PyTorch CUDA baseline. It does not prove raw-logit bitwise equality, universal strict-`1e-5` raw-logit equality, caption-quality improvement, state-of-the-art inference speed, universal speedup, or generalization.
+Current claim boundary: Phase 5A proves exact greedy decisions and cache-contract correctness for the pinned real GPT-2/Projector/Phase-2-reference protocol, distribution-level alignment under the frozen `5e-5` TV gate, and reproducible pinned-device runtime/memory measurements. It discloses raw/centered/coordinatewise drift and the PyTorch CUDA baseline. It does not prove raw-logit bitwise equality, universal strict-`1e-5` raw-logit equality, caption-quality improvement, state-of-the-art inference speed, universal speedup, mixed-precision correctness, larger-LLM correctness, or generalization.
 
 ## 12. Network and recovery notes
 
@@ -1254,5 +1244,7 @@ Use the environment settings in section 4.3. Do not repeatedly delete the workin
 | 2026-08-03 | `6d3ba71` baseline; acceptance-v3 source/config/tests/docs dirty on Windows and AutoDL | Acceptance-v3 development validation is complete. The first `acceptance_v3_dirty_smoke.*` wrapper failed before model execution because its temporary JSON was not created; that namespace is preserved. Corrected `acceptance_v3_dirty_smoke_retry1.*` passed all 9/9 samples with exact greedy IDs, exact cache contracts, `invariants_passed=true`, top-level `passed=true`, and global maximum per-step total variation `3.688904192621437e-05` under the frozen `5e-5` bound. Coordinatewise diagnostics still failed as expected and remain diagnostic-only. AutoDL full retry 2 passed 74 tests with 8 skips after preserving the CRLF wrapper failure, intermittent Jittor segfault, and isolated 2/2 retry. | Finish Windows/static checks, explicitly stage the seven reviewed acceptance-v3 files, commit/push/sync, run clean-commit AutoDL tests, then launch the formal 3-warmup/10-run benchmark in a new commit-specific `tmux` namespace. |
 
 | 2026-08-03 | `7227717` synchronized on Windows/GitHub/AutoDL; tracked AutoDL source clean | Acceptance-v3 clean validation passed. AutoDL full discovery: 74 tests, 8 skips, exit 0. Formal `kv_cache_benchmark_7227717.*` used 64/128/192 x samples 0/1/2, 32 tokens, 3 warmups, 10 measured runs; all 9/9 exact IDs/cache/TV gates passed, global max TV `3.505422367609121e-05`, GPT-2 and Projector were frozen/hash-unchanged, `invariants_passed=true`, top-level `passed=true`. Mean cached/uncached totals and speedups were 240.8540/243.3399 ms (1.01032x), 241.4139/255.4643 ms (1.05820x), and 241.0673/290.8731 ms (1.20661x); peak process GPU memory was 1168/1250/1322 MiB. | Commit/sync final-result docs, create an internally hashed Phase 5A evidence archive, copy it to Windows, verify matching outer SHA256, record completion, and only then begin the next phase. |
+
+| 2026-08-03 | `dc1326f` formal-result docs synchronized; Phase 5A evidence finalized on AutoDL and Windows | `VisionZip-Jittor-phase5a-evidence-20260803.tar.gz` contains 112 internally checksummed entries, independently passed 112/112 unpacked checksum verification, is 521499 bytes, and has matching outer SHA256 `20093fb7550d6e17fc96566191236bc3631952998a5d4097d245ae1f2037ec81` on both hosts. It contains reviewed source/config/tests/docs, complete Phase 5A logs including preserved failures/diagnostics, formal `7227717` evidence, clean tests, and Git/environment metadata; large hashed model/data artifacts are deliberately excluded. Phase 5A is complete. | Commit/push/synchronize this completion-state documentation, confirm Windows/GitHub/AutoDL point to the same final commit, then design a bounded Phase 5B scope before implementation. |
 
 When adding a new row, keep older rows. The newest row should state the exact commit or dirty-worktree state, the verified result, and the next blocking action.
