@@ -1,0 +1,146 @@
+{
+  "artifact_type": "visionzip_jittor_submission_results_v1",
+  "generated_from": {
+    "phase2": {
+      "file": "VisionZip-Jittor-phase2-evidence-20260802.tar.gz",
+      "sha256": "8886e0fe914a0d68aec70346005853dc83a9086185d58dcfe945d040de612cdc"
+    },
+    "phase4a": {
+      "file": "VisionZip-Jittor-phase4a-evidence-20260803.tar.gz",
+      "sha256": "01942f1fd7e82faf6eb5e8bcb9ffca9c2474b50718eea47e00ba446960926858"
+    },
+    "phase4b": {
+      "file": "VisionZip-Jittor-phase4b-evidence-final-v2-20260803.tar.gz",
+      "sha256": "2efeeaa88f18ab11b8431a7dd810b296366073d14b5717d02c72152dba70c032"
+    },
+    "phase5a": {
+      "file": "VisionZip-Jittor-phase5a-evidence-20260803.tar.gz",
+      "sha256": "20093fb7550d6e17fc96566191236bc3631952998a5d4097d245ae1f2037ec81"
+    }
+  },
+  "phase2_real_clip_alignment": [
+    {
+      "budget": 64,
+      "output_tokens_including_cls": 65,
+      "selected_indices_exact": true,
+      "assignments_exact": true,
+      "compressed_max_abs_error": 5.7220458984375e-06,
+      "compressed_mean_abs_error": 9.304538104096047e-09,
+      "contextual_max_abs_error": 5.7220458984375e-06,
+      "cls_attention_max_abs_error": 2.384185791015625e-07,
+      "passed": true
+    },
+    {
+      "budget": 128,
+      "output_tokens_including_cls": 129,
+      "selected_indices_exact": true,
+      "assignments_exact": true,
+      "compressed_max_abs_error": 1.9073486328125e-06,
+      "compressed_mean_abs_error": 4.546648648156624e-09,
+      "contextual_max_abs_error": 1.9073486328125e-06,
+      "cls_attention_max_abs_error": 2.384185791015625e-07,
+      "passed": true
+    },
+    {
+      "budget": 192,
+      "output_tokens_including_cls": 193,
+      "selected_indices_exact": true,
+      "assignments_exact": true,
+      "compressed_max_abs_error": 1.9073486328125e-06,
+      "compressed_mean_abs_error": 3.8218143936456835e-09,
+      "contextual_max_abs_error": 1.9073486328125e-06,
+      "cls_attention_max_abs_error": 3.5762786865234375e-07,
+      "passed": true
+    }
+  ],
+  "phase4a_infrastructure_training": {
+    "passed": true,
+    "initial_train_loss": 9.825726509094238,
+    "final_train_loss": 4.479739189147949,
+    "initial_validation_loss": 7.5414838790893555,
+    "final_validation_loss": 7.752180099487305,
+    "language_unchanged": true,
+    "projector_optimizer_scope_exact": true
+  },
+  "phase4b_real_paired_training": {
+    "passed": true,
+    "completed_training": true,
+    "start_optimizer_step": 0,
+    "final_optimizer_step": 1344,
+    "initial_held_out_target_nll": 6.643716599545368,
+    "final_held_out_target_nll": 2.413187829110486,
+    "initial_held_out_perplexity": 767.9438354472138,
+    "final_held_out_perplexity": 11.169510943754625,
+    "language_unchanged": true,
+    "projector_optimizer_scope_exact": true,
+    "projector_trainability_restored_after_evaluation": true,
+    "all_updates_finite": true,
+    "effective_samples_per_second": 132.92145717737577,
+    "target_tokens_per_second": 1413.1492154945145,
+    "mean_optimizer_step_ms": 120.37183717184918,
+    "peak_process_gpu_memory_mib": 3058
+  },
+  "phase5a_kv_cache": {
+    "passed": true,
+    "invariants_passed": true,
+    "source_commit": "72277174069b9cef63831529f3ef2e3e16965cd1",
+    "gpu_name": "NVIDIA GeForce RTX 4090",
+    "max_new_tokens": 32,
+    "warmup_runs": 3,
+    "measured_runs": 10,
+    "max_total_variation_threshold": 5e-05,
+    "claim_boundary": "Phase 5A validates exact greedy decisions, cache structure, and distribution-level alignment while retaining raw, centered, and coordinatewise probability drift as diagnostics. It reports runtime measurements and does not claim raw-logit strict equality or caption-quality improvement.",
+    "budgets": [
+      {
+        "budget": 64,
+        "cases": 3,
+        "exact_greedy_ids": true,
+        "exact_cache_contracts": true,
+        "max_total_variation_distance": 2.0911763919726617e-05,
+        "cached_total_mean_ms": 240.8540353178978,
+        "uncached_total_mean_ms": 243.33988800644875,
+        "cached_vs_uncached_speedup": 1.0103209924852201,
+        "peak_process_gpu_memory_mib": 1168,
+        "passed": true
+      },
+      {
+        "budget": 128,
+        "cases": 3,
+        "exact_greedy_ids": true,
+        "exact_cache_contracts": true,
+        "max_total_variation_distance": 3.505422367609121e-05,
+        "cached_total_mean_ms": 241.41394148270288,
+        "uncached_total_mean_ms": 255.464327087005,
+        "cached_vs_uncached_speedup": 1.0582003902426191,
+        "peak_process_gpu_memory_mib": 1250,
+        "passed": true
+      },
+      {
+        "budget": 192,
+        "cases": 3,
+        "exact_greedy_ids": true,
+        "exact_cache_contracts": true,
+        "max_total_variation_distance": 1.598435777075381e-05,
+        "cached_total_mean_ms": 241.06734345356622,
+        "uncached_total_mean_ms": 290.8731463054816,
+        "cached_vs_uncached_speedup": 1.206605349934131,
+        "peak_process_gpu_memory_mib": 1322,
+        "passed": true
+      }
+    ]
+  },
+  "claim_boundary": {
+    "validated": [
+      "Native Jittor VisionZip core and real-CLIP feature alignment",
+      "Projector-only training with a frozen native Jittor GPT-2",
+      "Held-out target NLL reduction on the pinned 8,192-sample pilot",
+      "Pinned-protocol native Jittor GPT-2 KV-cache correctness and timing"
+    ],
+    "not_validated": [
+      "All VisionZip paper tables, datasets, tasks, and model scales",
+      "LLaVA-equivalent end-to-end quality",
+      "Human-caption quality or COCO multi-reference benchmark quality",
+      "Universal strict 1e-5 raw-logit equality or universal speedup"
+    ]
+  }
+}

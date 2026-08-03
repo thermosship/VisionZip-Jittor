@@ -1,0 +1,4 @@
+budget,output_tokens_including_cls,selected_indices_exact,assignments_exact,compressed_max_abs_error,compressed_mean_abs_error,contextual_max_abs_error,cls_attention_max_abs_error,passed
+64,65,True,True,5.7220458984375e-06,9.304538104096047e-09,5.7220458984375e-06,2.384185791015625e-07,True
+128,129,True,True,1.9073486328125e-06,4.546648648156624e-09,1.9073486328125e-06,2.384185791015625e-07,True
+192,193,True,True,1.9073486328125e-06,3.8218143936456835e-09,1.9073486328125e-06,3.5762786865234375e-07,True

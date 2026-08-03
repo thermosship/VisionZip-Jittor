@@ -2,9 +2,9 @@
 
 > **Purpose:** This is the authoritative cross-account handoff file for Codex agents working on this reproduction. A new agent may have no access to earlier chats. Read this file completely before modifying code, running expensive jobs, changing claims, or proposing the next phase.
 >
-> **Last authoritative update:** 2026-08-03 (Asia/Shanghai), after Phase 5A acceptance-v3 formal validation and evidence finalization. Formal source commit `7227717` passed all 9/9 exact greedy-ID, exact cache-contract, and frozen per-step TV (`<=5e-5`) gates; clean AutoDL discovery passed 74 tests with 8 skips. `VisionZip-Jittor-phase5a-evidence-20260803.tar.gz` contains 112 internally checksummed entries, independently verified 112/112 after unpacking, and has matching AutoDL/Windows SHA256 `20093fb7550d6e17fc96566191236bc3631952998a5d4097d245ae1f2037ec81`. Formal-result documentation commit `dc1326f` and completion-state documentation commit `a0d32de` are synchronized on Windows, GitHub, and AutoDL. The first AutoDL pull of `a0d32de` hit the known transient GnuTLS termination failure; a retry after `/etc/network_turbo` fast-forwarded successfully, so this was a transport failure rather than a code failure.
+> **Last authoritative update:** 2026-08-03 (Asia/Shanghai), during the Submission Readiness pass based on synchronized baseline `2fa5d31 docs: finalize phase5a handoff`. Phases 1 through 5A remain complete. The Windows worktree now contains an uncommitted submission-focused README rewrite, environment corrections, compact result tables, a reproducible asset builder, Loss/LR/alignment/KV-cache/token-visualization figures, training/claim-boundary documentation, readiness auditing, and focused tests. Local review and validation are complete: focused tests passed; Windows full discovery passed 77 tests with 18 environment-only skips; compileall and diff checks passed; the asset rebuild was byte-stable; 16 Markdown files passed relative-link validation; and 5 PNG files passed integrity checks. The reviewed changes remain uncommitted pending explicit staging, commit/push, and AutoDL clean-commit validation. Phase 5B is deliberately deferred because the remaining highest-value work is submission evidence quality rather than another large technical scope.
 >
-> **Current phase boundary:** **Phases 1, 2, 3A, 3B, 4A, 4B, and 5A are complete. Phase 5B has not yet been scoped.** Do not begin Phase 5B implementation until a versioned plan freezes its objective, artifacts, acceptance contract, benchmark protocol, resources, evidence requirements, and non-claims. Phase 5A must not be described as caption-quality improvement, raw-logit bitwise equality, universal strict-`1e-5` equality, or universal speedup.
+> **Current phase boundary:** **Phases 1, 2, 3A, 3B, 4A, 4B, and 5A are complete. Submission Readiness is active. Phase 5B is deferred.** The current objective is to make the public repository submission-ready: compact reproducible evidence, accurate environment/data/training instructions, reviewed result tables and figures, and explicit non-claims. Do not describe this project as a full reproduction of every VisionZip paper experiment, LLaVA-equivalent training, caption-quality improvement, raw-logit bitwise equality, universal strict-`1e-5` equality, or universal speedup.
 
 ## 1. Mandatory instructions for every future Codex agent
 
@@ -91,7 +91,21 @@ The user's low local RAM does not limit remote model loading. Avoid opening larg
 
 ## 3. Current live state
 
-Last authoritative live state is from 2026-08-03 after the first clean Phase 5A formal benchmark. Windows, GitHub, and AutoDL are synchronized at `6d3ba71 feat: add native Jittor GPT-2 KV-cache benchmark`. AutoDL retains the failed formal namespace `logs/phase5a/kv_cache_benchmark_6d3ba71.*` plus numerical diagnostics; these generated files are intentionally untracked and must not be overwritten or committed. The Phase 4B completed artifacts remain unchanged and intentionally untracked.
+Windows, GitHub, and AutoDL were synchronized at `2fa5d31 docs: finalize phase5a handoff` before this Submission Readiness work began. The current Windows worktree is intentionally dirty with locally validated submission materials and has not yet been committed. Existing AutoDL model/data/checkpoint/log artifacts remain untracked and must not be added to Git. Historical Phase 4B and Phase 5A evidence archives remain authoritative for the measured values used by the compact tables and plots.
+
+Current Submission Readiness worktree scope:
+
+```text
+Baseline HEAD: 2fa5d31
+Phase status: Phases 1-5A complete; Submission Readiness active; Phase 5B deferred
+Tracked modifications: README.md, environment/README.md, pyproject.toml, AGENTS.md
+New source/test/dependency files: scripts/build_submission_assets.py, tests/test_submission_assets.py, requirements/submission.txt
+New documentation: docs/RESULTS_SUMMARY.md, docs/TRAINING_AND_CLAIM_BOUNDARY.md, docs/SUBMISSION_READINESS.md
+New compact results: docs/results/*.csv, docs/results/submission_results.json, docs/results/README.md
+New figures: docs/assets/phase2_alignment_errors.png, phase4b_loss_curve.png, phase4b_learning_rate.png, phase5a_kv_cache.png, visionzip_token_visualizations.png
+Evidence inputs: Phase 2, Phase 4A, Phase 4B final-v2, and Phase 5A archives stored outside Git
+Local validation complete: 77 tests (18 skips), compileall/diff checks pass, byte-stable asset rebuild, 16 Markdown links OK, 5 PNG integrity checks OK; remaining: explicitly stage, commit/push, sync and validate on AutoDL
+```
 
 ```text
 Remote host: autodl-container-10894aa74d-da4e9cbe
@@ -843,81 +857,45 @@ Non-claim: not directly comparable with multi-reference COCO metrics and does no
 The technical acceptance gap and administrative evidence step are both closed. Final v2 archive `VisionZip-Jittor-phase4b-evidence-final-v2-20260803.tar.gz` contains 45 files and matched SHA256 `2EFEEAA88F18AB11B8431A7DD810B296366073D14B5717D02C72152DBA70C032` on AutoDL and Windows; the original archive remains preserved.
 
 
-### 6.7 Phase 5A -- native Jittor GPT-2 KV-cache generation: IN PROGRESS
+### 6.7 Phase 5A -- native Jittor GPT-2 KV-cache generation: COMPLETE
 
-Fixed plan and configuration:
+Fixed implementation and formal protocol:
 
 ```text
 Plan: docs/PHASE5A_KV_CACHE_PLAN.md
 Config: configs/phase5a_kv_cache.json
 Runner: scripts/run_phase5a_kv_cache.py
-Committed baseline: 6d3ba713476b054f9cf9ea374144de538b2ec601
+Acceptance-v3 source commit: 72277174069b9cef63831529f3ef2e3e16965cd1
 Budgets: 64, 128, 192
 Samples: Phase 2 rows 0, 1, 2 (dense.png, scene.png, text.png)
 Generated tokens: 32
 Warmups / measured runs: 3 / 10
-Raw-logit strict diagnostic: atol=rtol=1e-5, retained and reported
-Planned acceptance: exact greedy IDs + exact cache + softmax probabilities allclose at 1e-5
-Exact cached/uncached greedy IDs: required
+Acceptance: exact greedy IDs + exact cache contract + per-step total variation <= 5e-5
+Diagnostics retained: raw logits, centered logits, coordinatewise probability allclose
 Speedup > 1: not required
 ```
 
-First clean formal run from `6d3ba71`:
+Formal clean result from `7227717`:
+
+| Budget | Exact IDs/cache/TV | Maximum TV | Cached total | Uncached total | Speedup | Peak GPU |
+|---:|:---:|---:|---:|---:|---:|---:|
+| 64 | 3/3 passed | `2.0911763919726617e-05` | `240.8540 ms` | `243.3399 ms` | `1.01032x` | `1168 MiB` |
+| 128 | 3/3 passed | `3.505422367609121e-05` | `241.4139 ms` | `255.4643 ms` | `1.05820x` | `1250 MiB` |
+| 192 | 3/3 passed | `1.598435777075381e-05` | `241.0673 ms` | `290.8731 ms` | `1.20661x` | `1322 MiB` |
+
+All 9/9 budget/sample cases passed exact greedy-token, exact cache-contract, frozen-model/projector, and TV gates. Clean AutoDL discovery passed 74 tests with 8 environment-only skips. The formal result remains protocol- and device-specific: raw-logit strict `1e-5` equality is diagnostic rather than the acceptance gate, and the measured speedups are not a universal performance claim.
+
+Final evidence archive:
 
 ```text
-Namespace: logs/phase5a/kv_cache_benchmark_6d3ba71.*
-Tracked worktree clean: true
-Exit code: 1
-Top-level passed: false
-Invariants passed: true
-Exact greedy token IDs: 9/9 samples
-Raw-logit strict diagnostic: failed for budget 64 sample 1 and all budget 192 samples
-Global raw-logit max absolute error: 0.0028228759765625
-Budget 64 speedup / peak: 1.0574611537x / 1168 MiB
-Budget 128 speedup / peak: 1.0888121661x / 1250 MiB
-Budget 192 speedup / peak: 1.2733758661x / 1322 MiB
+Archive: VisionZip-Jittor-phase5a-evidence-20260803.tar.gz
+Checksummed entries: 112
+Independent unpack verification: 112/112
+Size: 521499 bytes
+AutoDL/Windows SHA256: 20093fb7550d6e17fc96566191236bc3631952998a5d4097d245ae1f2037ec81
 ```
 
-The formal failure is preserved and must not be relabeled as success. Layerwise diagnosis found identical starting embeddings and divergence caused by different CUDA FP32 GEMM/reduction shapes (`query length = 1` cached versus full-prefix recomputation), with amplification through later layers. Official PyTorch 2.1.2+cu118 on the same RTX 4090 also produced exact token IDs but failed strict raw-logit `1e-5` on 7 steps, with maximum absolute error `0.001659393310546875`. For the representative Jittor budget-192/sample-1/step-20 case, raw-logit max error was `5.531311035156e-04`, centered-logit max error was `9.297727791235e-05`, and softmax-probability max error was `2.430344259174e-09` with probability allclose at `1e-5`.
-
-Fixed real artifacts:
-
-```text
-GPT-2: outputs/phase3b/gpt2
-Projector checkpoint:
-  outputs/phase4b/commoncatalog_cc_by_8k/training_benchmark_0f53a93/best_projector.npz
-Projector checkpoint SHA256:
-  d209bba83b7ee822efa5e29912ce0bc82748fdcb90303f06981f912ee9f928fa
-Projector parameter SHA256:
-  e6d75a61946ef3d67cc05b83a48f3eb7af78cfd1bda0c66ca1a00926f8e913cb
-Feature manifest:
-  outputs/phase4b/commoncatalog_cc_by_8k/features/manifest.json
-Feature manifest SHA256:
-  2673aafd3ec7084c7eae54cd8eaac693fc21f84892cccf60a0c14f8c349a36a9
-Canonical Phase 4B config SHA256:
-  ff80fda5bfc9a56580ccd26ede7cf4f3a8ea3742c10c4d6f55dc5afa8dbbe6ac
-Phase 2 references:
-  outputs/real_clip/reference_clip_64_code_exact_float32_real_clip.npz
-  outputs/real_clip/reference_clip_128_code_exact_float32_real_clip.npz
-  outputs/real_clip/reference_clip_192_code_exact_float32_real_clip.npz
-```
-
-Implementation acceptance already reached:
-
-- native cache grows correctly across prefill and one-token decode;
-- cached last-token logits match uncached full recomputation in focused tests;
-- cached and uncached greedy IDs are exact in focused tests and the reduced real-artifact smoke;
-- real GPT-2 CUDA diagnostic is allclose at `1e-5` and argmax-exact;
-- all 63 AutoDL tests pass with 8 environment-only skips;
-- reduced formal-runner smoke passes provenance, correctness, cache, frozen/hash, timing, and memory checks.
-
-Still required before marking Phase 5A complete:
-
-- commit an explicit acceptance-v2 change that retains the raw-logit strict diagnostic and adds centered-logit plus softmax-probability reports;
-- add focused tests proving the raw diagnostic can fail while exact IDs/probability/cache acceptance passes;
-- synchronize the new clean commit and rerun the full benchmark under a new `tmux` namespace without overwriting `kv_cache_benchmark_6d3ba71.*`;
-- audit all 9 budget/sample combinations, invariants, timing, and memory;
-- update final result documentation and build a versioned evidence archive with internal hashes and matching AutoDL/Windows SHA256.
+The archive preserves formal, failed, dirty, and diagnostic namespaces while excluding large model/data artifacts whose provenance and hashes are recorded separately.
 
 ## 7. Important source map
 
@@ -1152,30 +1130,22 @@ It does **not** yet prove:
 
 The fresh Phase 4A validation loss increased from `7.54148` to `7.75218`, and the generated validation text was poor. Retain both facts in future reports. They do not invalidate the infrastructure acceptance result, but they prohibit any visual-language quality claim.
 
-## 11. Next exact actions -- PHASE 5B SCOPE DESIGN
+## 11. Next exact actions -- SUBMISSION READINESS
 
-Phase 5A is complete. Acceptance-v3 source commit `72277174069b9cef63831529f3ef2e3e16965cd1` passed clean AutoDL tests and the full 64/128/192 x 3-sample formal protocol. The evidence archive is finalized:
-
-```text
-archive:                  VisionZip-Jittor-phase5a-evidence-20260803.tar.gz
-checksummed entries:      112
-independent unpack check: 112 / 112 OK
-size:                     521499 bytes
-AutoDL SHA256:            20093fb7550d6e17fc96566191236bc3631952998a5d4097d245ae1f2037ec81
-Windows SHA256:           20093fb7550d6e17fc96566191236bc3631952998a5d4097d245ae1f2037ec81
-```
-
-The archive preserves all Phase 5A formal, dirty, failed, and diagnostic namespaces while intentionally excluding large model/data artifacts whose SHA256/provenance are already recorded in the formal JSON.
+Phase 5A is complete and Phase 5B is deferred. The blocking work is now repository and evidence finalization, not additional model scope.
 
 Exact next actions:
 
-1. Preserve the archive and all existing `logs/phase5a` namespaces; never overwrite or retroactively relabel failed v1/v2/v3 attempts.
-2. Do not start Phase 5B code changes until `docs/PHASE5B_*.md` freezes a bounded objective, inputs/artifacts, acceptance gates, numerical tolerances, tests, benchmark method, resource estimate, evidence archive plan, and non-goals.
-3. Decide explicitly whether Phase 5B targets batching, a larger frozen LLM, mixed precision, or another runtime capability. Do not combine multiple major axes in one acceptance milestone without separate gates.
-4. Treat Phase 5A's `5e-5` TV bound and RTX 4090 timings as protocol-specific evidence, not inherited universal thresholds or performance promises.
-5. Continue updating this file after every material decision, failure, run, commit, evidence package, and phase transition.
+1. Review `README.md`, `environment/README.md`, and all new submission documents against actual script arguments, paths, measured JSON, and the allowed claim boundary.
+2. Validate `scripts/build_submission_assets.py` with focused unit tests, full test discovery, `py_compile`, deterministic/numerically stable regeneration, image integrity checks, relative-link checks, and `git diff --check`.
+3. Confirm that generated compact CSV/JSON and figures contain no large model/data artifacts and can be regenerated from the four external evidence archives with recorded SHA256 values.
+4. Explicitly stage only reviewed source, documentation, compact tables, and PNG figures. Never use `git add .` or `git add -A`.
+5. Commit and push the Submission Readiness changes, then fast-forward AutoDL and run clean-commit validation there. Preserve untracked AutoDL logs, checkpoints, model weights, tokenizers, feature shards, and datasets.
+6. Perform one clean-environment README walkthrough before freezing the GitHub release/tag.
+7. Recheck the live `GrokCV/Jittor-Sprouts` list on the actual submission date. The 2026-08-03 audit of commit `451dd0e5499d2a5730d9314e7bba0b8320d6afc2` found no `VisionZip` entry, but this is time-sensitive.
+8. Only after repository/evidence finalization move to PPT, narration, and video. Do not start Phase 5B unless the user explicitly prioritizes it over submission preparation and a versioned scope is reviewed first.
 
-Current claim boundary: Phase 5A proves exact greedy decisions and cache-contract correctness for the pinned real GPT-2/Projector/Phase-2-reference protocol, distribution-level alignment under the frozen `5e-5` TV gate, and reproducible pinned-device runtime/memory measurements. It discloses raw/centered/coordinatewise drift and the PyTorch CUDA baseline. It does not prove raw-logit bitwise equality, universal strict-`1e-5` raw-logit equality, caption-quality improvement, state-of-the-art inference speed, universal speedup, mixed-precision correctness, larger-LLM correctness, or generalization.
+Current claim boundary: this repository demonstrates a native-Jittor VisionZip compression core, real CLIP feature alignment, frozen real GPT-2 integration, Projector-only paired training on a pinned 8,192-sample licensed subset, and native KV-cache generation under pinned protocols. It does not reproduce every experiment or quality conclusion in the VisionZip paper and does not establish LLaVA-equivalent quality, COCO multi-reference caption quality, raw-logit bitwise equality, universal strict-`1e-5` equality, or universal speedup.
 
 ## 12. Network and recovery notes
 
@@ -1246,5 +1216,9 @@ Use the environment settings in section 4.3. Do not repeatedly delete the workin
 | 2026-08-03 | `7227717` synchronized on Windows/GitHub/AutoDL; tracked AutoDL source clean | Acceptance-v3 clean validation passed. AutoDL full discovery: 74 tests, 8 skips, exit 0. Formal `kv_cache_benchmark_7227717.*` used 64/128/192 x samples 0/1/2, 32 tokens, 3 warmups, 10 measured runs; all 9/9 exact IDs/cache/TV gates passed, global max TV `3.505422367609121e-05`, GPT-2 and Projector were frozen/hash-unchanged, `invariants_passed=true`, top-level `passed=true`. Mean cached/uncached totals and speedups were 240.8540/243.3399 ms (1.01032x), 241.4139/255.4643 ms (1.05820x), and 241.0673/290.8731 ms (1.20661x); peak process GPU memory was 1168/1250/1322 MiB. | Commit/sync final-result docs, create an internally hashed Phase 5A evidence archive, copy it to Windows, verify matching outer SHA256, record completion, and only then begin the next phase. |
 
 | 2026-08-03 | `a0d32de` completion documentation synchronized on Windows/GitHub/AutoDL; Phase 5A closed | `VisionZip-Jittor-phase5a-evidence-20260803.tar.gz` contains 112 internally checksummed entries, independently passed 112/112 unpacked checksum verification, is 521499 bytes, and has matching outer SHA256 `20093fb7550d6e17fc96566191236bc3631952998a5d4097d245ae1f2037ec81` on both hosts. It contains reviewed source/config/tests/docs, complete Phase 5A logs including preserved failures/diagnostics, formal `7227717` evidence, clean tests, and Git/environment metadata; large hashed model/data artifacts are deliberately excluded. The first AutoDL pull failed with the known transient GnuTLS termination error, and the `/etc/network_turbo` retry fast-forwarded successfully. Phase 5A is complete. | Design and review a bounded Phase 5B scope document before any Phase 5B implementation; preserve the Phase 5A archive and every historical log namespace unchanged. |
+
+| 2026-08-03 | `2fa5d31` baseline; Submission Readiness changes dirty and uncommitted on Windows | Added a submission-oriented README rewrite, corrected environment contract, compact Phase 2/4B/5A result tables, full compact Phase 4B training and validation traces, reproducible figure/asset generation, Loss/LR/alignment/KV-cache/token-visualization PNGs, training/claim-boundary and readiness documents, dependency metadata, and focused tests. Source values are reconstructed from externally stored Phase 2/4A/4B/5A evidence archives with recorded SHA256 values. Phase 5B is deferred. | Review script arguments, links, images, and claims; run focused/full tests, py_compile, asset rebuild, link/image/diff checks; explicitly stage reviewed files; commit/push; sync and validate on AutoDL. |
+
+| 2026-08-03 | `2fa5d31` baseline; Submission Readiness locally validated but still uncommitted on Windows | Review and local validation completed: focused 3/3 tests passed; Windows discovery ran 77 tests with 18 environment-only skips; compileall and `git diff --check` passed; regeneration from the four external evidence archives was byte-stable; 16 Markdown files passed relative-link checks; 5 PNGs passed integrity checks; reviewed text files are UTF-8 without BOM. No model/data/checkpoint artifacts are included. | Explicitly stage the reviewed allowlist, inspect the staged diff, commit/push, then fast-forward AutoDL and run clean-commit full tests and compileall without touching its untracked evidence artifacts. |
 
 When adding a new row, keep older rows. The newest row should state the exact commit or dirty-worktree state, the verified result, and the next blocking action.

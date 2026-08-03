@@ -1,0 +1,4 @@
+budget,cases,exact_greedy_ids,exact_cache_contracts,max_total_variation_distance,cached_total_mean_ms,uncached_total_mean_ms,cached_vs_uncached_speedup,peak_process_gpu_memory_mib,passed
+64,3,True,True,2.0911763919726617e-05,240.8540353178978,243.33988800644875,1.0103209924852201,1168,True
+128,3,True,True,3.505422367609121e-05,241.41394148270288,255.464327087005,1.0582003902426191,1250,True
+192,3,True,True,1.598435777075381e-05,241.06734345356622,290.8731463054816,1.206605349934131,1322,True
