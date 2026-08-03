@@ -2,9 +2,9 @@
 
 > **Purpose:** This is the authoritative cross-account handoff file for Codex agents working on this reproduction. A new agent may have no access to earlier chats. Read this file completely before modifying code, running expensive jobs, changing claims, or proposing the next phase.
 >
-> **Last authoritative update:** 2026-08-03 (Asia/Shanghai), after synchronizing and validating submission-material commit `7c1d45f docs: prepare submission-ready results and training evidence`. Phases 1 through 5A remain complete. The committed submission package contains a submission-focused README, corrected environment guidance, compact result tables, a reproducible asset builder, Loss/LR/alignment/KV-cache/token-visualization figures, training/claim-boundary documentation, readiness auditing, and focused tests. Local review and validation are complete: focused tests passed; Windows full discovery passed 77 tests with 18 environment-only skips; compileall and diff checks passed; the asset rebuild was byte-stable; 16 Markdown files passed relative-link validation; and 5 PNG files passed integrity checks. The submission materials were committed and pushed as `7c1d45f docs: prepare submission-ready results and training evidence`. AutoDL fast-forwarded to that commit. Its first full discovery hit the known intermittent Jittor segfault in `test_frozen_stub_backpropagates_only_into_projector`; the isolated Phase 3 file then passed 2/2 and full retry 1 passed 77 tests with 8 environment-only skips. AutoDL compileall and diff checks passed. Failure and retry logs are preserved untracked under `logs/submission_readiness/`. Phase 5B is deliberately deferred. A clean-checkout README walkthrough and submission tag/release freeze are now active.
+> **Last authoritative update:** 2026-08-03 (Asia/Shanghai), after completing the final clean-checkout README walkthrough at commit `04f098d8d69edd0ad85da37351892a3685ac475b`. The walkthrough used an independent GitHub checkout and a fresh conda prefix, installed from checked-in requirements, and passed the activation contract, 11-script help smoke, 80-test discovery (`8` environment-only skips), compileall, diff checks, synthetic alignment, real CLIP 64/128/192 alignment, native Jittor real GPT-2 smoke, and Phase 4B no-download preflight. The machine-readable result is `docs/results/clean_readme_walkthrough_04f098d.json`; external walkthrough logs remain untracked on AutoDL and the compact summary SHA256 is `5b8ebf154a72d6c3951910330fcdadc250611fcaa1461c30fb5b70fa6cc03f01`. Walkthrough documentation has also passed Windows review: the focused environment-script suite passed 3/3, full discovery passed 80 tests with 18 environment-only skips, compileall and diff checks passed, 50 Markdown relative links resolved, and the compact JSON integrity check passed. The reviewed files are awaiting explicit commit/push before the immutable submission tag/release is created. Phase 5B remains deliberately deferred.
 >
-> **Current phase boundary:** **Phases 1, 2, 3A, 3B, 4A, 4B, and 5A are complete. Submission Readiness finalization is active: clean walkthrough and release freeze. Phase 5B is deferred.** The current objective is to make the public repository submission-ready: compact reproducible evidence, accurate environment/data/training instructions, reviewed result tables and figures, and explicit non-claims. Do not describe this project as a full reproduction of every VisionZip paper experiment, LLaVA-equivalent training, caption-quality improvement, raw-logit bitwise equality, universal strict-`1e-5` equality, or universal speedup.
+> **Current phase boundary:** **Phases 1, 2, 3A, 3B, 4A, 4B, and 5A are complete. The clean README walkthrough is complete and Submission Readiness release freeze is active. Phase 5B is deferred.** The next blocking work is to commit/push the walkthrough record, freeze the annotated submission tag and GitHub Release, then move to PPT/video production. Do not describe this project as a full reproduction of every VisionZip paper experiment, LLaVA-equivalent training, caption-quality improvement, raw-logit bitwise equality, universal strict-`1e-5` equality, or universal speedup.
 
 ## 1. Mandatory instructions for every future Codex agent
 
@@ -91,20 +91,24 @@ The user's low local RAM does not limit remote model loading. Avoid opening larg
 
 ## 3. Current live state
 
-Windows, GitHub, and AutoDL are synchronized at `7c1d45f docs: prepare submission-ready results and training evidence`. The submission material commit is clean and validated on both Windows and AutoDL. Existing AutoDL model/data/checkpoint/log artifacts remain untracked and must not be added to Git. Historical Phase 4B and Phase 5A evidence archives remain authoritative for the measured values used by the compact tables and plots.
+Windows, GitHub, and AutoDL are synchronized at `04f098d docs: make real CLIP walkthrough self-contained`. The clean walkthrough itself has passed. The Windows worktree now contains only the reviewed walkthrough documentation/result updates plus this handoff update; these files must be committed explicitly before tagging. Existing AutoDL model/data/checkpoint/log artifacts remain untracked and must not be added to Git. Historical Phase 2/4A/4B/5A evidence archives remain authoritative for the measured values used by compact tables and plots.
 
-Current Submission Readiness worktree scope:
+Current Submission Readiness state:
 
 ```text
-Submission material commit: 7c1d45f
-Phase status: Phases 1-5A complete; Submission Readiness active; Phase 5B deferred
-Tracked modifications: README.md, environment/README.md, pyproject.toml, AGENTS.md
-New source/test/dependency files: scripts/build_submission_assets.py, tests/test_submission_assets.py, requirements/submission.txt
-New documentation: docs/RESULTS_SUMMARY.md, docs/TRAINING_AND_CLAIM_BOUNDARY.md, docs/SUBMISSION_READINESS.md
-New compact results: docs/results/*.csv, docs/results/submission_results.json, docs/results/README.md
-New figures: docs/assets/phase2_alignment_errors.png, phase4b_loss_curve.png, phase4b_learning_rate.png, phase5a_kv_cache.png, visionzip_token_visualizations.png
-Evidence inputs: Phase 2, Phase 4A, Phase 4B final-v2, and Phase 5A archives stored outside Git
-Windows: 77 tests (18 skips), compileall/diff checks pass, byte-stable asset rebuild, 16 Markdown links OK, 5 PNG integrity checks OK; AutoDL: isolated Phase 3 2/2 PASS, full retry 77 tests (8 skips), compileall/diff checks PASS
+Walkthrough target commit: 04f098d8d69edd0ad85da37351892a3685ac475b
+Fresh checkout: /root/autodl-tmp/submission_walkthrough/VisionZip-Jittor-04f098d
+Fresh conda prefix: /root/autodl-tmp/envs/visionzip-readme-clean-04f098d
+Final walkthrough status: passed=true
+Tests: Ran 80 tests in 23.385s; OK (skipped=8)
+Passed gates: activation contract, 11-script help smoke, compileall, git diff --check, synthetic alignment, real CLIP 64/128/192, real GPT-2 smoke, Phase 4B no-download preflight
+External log directory: /root/autodl-tmp/VisionZip-Jittor/logs/submission_readiness/clean_walkthrough_04f098d/
+Compact result: docs/results/clean_readme_walkthrough_04f098d.json
+External compact-summary SHA256: 5b8ebf154a72d6c3951910330fcdadc250611fcaa1461c30fb5b70fa6cc03f01
+Tracked files currently being finalized: README.md, AGENTS.md, docs/CLEAN_README_WALKTHROUGH.md, docs/SUBMISSION_READINESS.md, docs/results/README.md, docs/results/clean_readme_walkthrough_04f098d.json
+Release policy: source and release notes only; no weights, datasets, checkpoints, feature shards, CLIP references, or large raw logs
+Windows validation: focused 3/3; full 80 tests with 18 skips; compileall/diff checks pass; 50 relative links and compact JSON pass
+Next blocker: explicitly commit/push walkthrough docs, then annotated tag and GitHub Release
 ```
 
 ```text
@@ -1132,16 +1136,16 @@ The fresh Phase 4A validation loss increased from `7.54148` to `7.75218`, and th
 
 ## 11. Next exact actions -- SUBMISSION READINESS
 
-Phase 5A is complete and Phase 5B is deferred. The blocking work is now repository and evidence finalization, not additional model scope.
+Phase 5A and the clean README walkthrough are complete; Phase 5B is deferred. The blocking work is now the immutable repository release freeze and presentation materials, not additional model scope.
 
 Exact next actions:
 
-1. Commit/push the repository-relative activation-script fix and README clean-environment override instructions.
-2. On AutoDL, create a fresh checkout and fresh Jittor conda prefix; install only from checked-in requirements and run the documented test/alignment walkthrough under a unique log namespace.
-3. Record exact commands, versions, pass/fail results, and boundaries in `docs/CLEAN_README_WALKTHROUGH.md`; preserve logs outside Git.
-4. Review and commit the walkthrough result, then create and push an immutable annotated submission tag.
-5. Create a GitHub Release from that tag without uploading model weights, datasets, checkpoints, feature shards, or raw large logs.
-6. Recheck the live `GrokCV/Jittor-Sprouts` list on the actual submission date.
+1. Review and locally validate the walkthrough documentation/result files and this `AGENTS.md` update.
+2. Explicitly stage only the reviewed documentation/result allowlist; commit and push it to `main`.
+3. Fast-forward AutoDL without touching its untracked logs, model artifacts, prepared dataset, features, or checkpoints.
+4. Verify `main` is clean and synchronized, create and push an annotated `v0.1.0-jittor-submission` tag, and do not move or overwrite that tag later.
+5. Create a GitHub Release from that tag. Publish source and release notes only; do not upload model weights, datasets, checkpoints, feature shards, CLIP reference NPZ files, or raw large logs.
+6. Recheck all relative links from the tagged tree and recheck the live `GrokCV/Jittor-Sprouts` list on the actual submission date.
 7. Move to PPT, narration, and video. Do not start Phase 5B unless the user explicitly reprioritizes it and a versioned scope is reviewed first.
 
 Current claim boundary: this repository demonstrates a native-Jittor VisionZip compression core, real CLIP feature alignment, frozen real GPT-2 integration, Projector-only paired training on a pinned 8,192-sample licensed subset, and native KV-cache generation under pinned protocols. It does not reproduce every experiment or quality conclusion in the VisionZip paper and does not establish LLaVA-equivalent quality, COCO multi-reference caption quality, raw-logit bitwise equality, universal strict-`1e-5` equality, or universal speedup.
@@ -1226,5 +1230,7 @@ Use the environment settings in section 4.3. Do not repeatedly delete the workin
 
 
 | 2026-08-03 | `a02b9cf` synchronized; first clean walkthrough attempts preserved, README sample-input fix dirty on Windows | A fresh GitHub clone and fresh conda prefix installed all checked-in Jittor/Phase 3B/dev requirements and the editable package. The checkout-relative activation contract passed. The first orchestration attempt stopped on a walkthrough-only typo naming nonexistent `scripts/export_phase4b_clip_features.py`; the corrected help pass and fresh-env full discovery then passed 79 tests with 8 skips, compileall/diff checks passed, and synthetic PyTorch/Jittor alignment passed exactly. The real-CLIP step exposed a genuine README omission: generated sample PNGs are intentionally untracked, but the top-level README did not run `scripts/create_sample_images.py` before using `assets/sample_images`. README now includes that deterministic generation step and a regression test enforces ordering. | Validate and commit/push the README/test/handoff fix; create a new fixed-commit clone and fresh prefix; rerun the complete walkthrough, preserving both failed attempt logs as audit evidence. |
+
+| 2026-08-03 | `04f098d` synchronized; clean walkthrough passed; walkthrough record locally validated and dirty on Windows | Final independent GitHub checkout and fresh conda-prefix walkthrough completed with `passed=true`: activation contract and 11-script help smoke passed; 80 tests passed with 8 environment-only skips; compileall/diff checks passed; synthetic alignment, real CLIP 64/128/192, native Jittor real GPT-2 smoke, and Phase 4B no-download preflight passed. The result is recorded in `docs/CLEAN_README_WALKTHROUGH.md` and `docs/results/clean_readme_walkthrough_04f098d.json`; external compact-summary SHA256 is `5b8ebf154a72d6c3951910330fcdadc250611fcaa1461c30fb5b70fa6cc03f01`. Windows review then passed focused 3/3 and full 80-test discovery with 18 environment-only skips, compileall/diff checks, 50 relative-link checks, and compact JSON integrity. No model/data/checkpoint/large-log artifact is being added. | Explicitly commit/push the reviewed allowlist, synchronize AutoDL, then create and publish immutable tag/release `v0.1.0-jittor-submission`; afterward proceed to PPT/video and submission-day list/claim review. |
 
 When adding a new row, keep older rows. The newest row should state the exact commit or dirty-worktree state, the verified result, and the next blocking action.

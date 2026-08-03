@@ -2,7 +2,7 @@
 
 使用 **Jittor 原生张量算子**复现 CVPR 2025 论文 **VisionZip: Longer is Better but Not Necessary in Vision Language Models** 的视觉 Token 压缩核心，并完成真实 CLIP 数值对齐、Projector-only 训练、原生 Jittor GPT-2 Small 与 KV-cache 验证。
 
-[论文（CVF）](https://openaccess.thecvf.com/content/CVPR2025/html/Yang_VisionZip_Longer_is_Better_but_Not_Necessary_in_Vision_Language_CVPR_2025_paper.html) · [官方代码](https://github.com/JIA-Lab-research/VisionZip) · [详细结果](docs/RESULTS_SUMMARY.md) · [训练边界](docs/TRAINING_AND_CLAIM_BOUNDARY.md) · [提交检查](docs/SUBMISSION_READINESS.md)
+[论文（CVF）](https://openaccess.thecvf.com/content/CVPR2025/html/Yang_VisionZip_Longer_is_Better_but_Not_Necessary_in_Vision_Language_CVPR_2025_paper.html) · [官方代码](https://github.com/JIA-Lab-research/VisionZip) · [详细结果](docs/RESULTS_SUMMARY.md) · [训练边界](docs/TRAINING_AND_CLAIM_BOUNDARY.md) · [提交检查](docs/SUBMISSION_READINESS.md) · [干净环境验证](docs/CLEAN_README_WALKTHROUGH.md)
 
 > **状态（2026-08-03）**：核心 Jittor 工程复现、真实 CLIP 三档对齐、真实 paired pilot 训练和 KV-cache 验收均已完成。仓库不是 VisionZip 论文全部表格/任务/模型规模的完整复刻；准确结论边界见[范围声明](#12-复现范围与结论边界)。
 
@@ -207,6 +207,8 @@ python -m unittest discover -s tests -v
 ```
 
 提交材料 commit `7c1d45f` 的验证结果：Windows discovery 为 `Ran 77 tests`, `OK (skipped=18)`；AutoDL/Jittor 首次 discovery 遇到已知的间歇性 Jittor segfault，受影响的 Phase 3 测试随后独立通过 `2/2`，完整 retry 通过 `Ran 77 tests`, `OK (skipped=8)`，且 `compileall`、`git diff --check` 均通过。首次失败和成功重试日志保留在 AutoDL 的 `logs/submission_readiness/`，不纳入 Git。
+
+最终提交前又在独立 GitHub checkout 与 fresh conda prefix 上完成 README walkthrough：`Ran 80 tests`, `OK (skipped=8)`，合成对齐、真实 CLIP 64/128/192、真实 GPT-2 smoke 和 Phase 4B preflight 全部通过。命令、环境、边界与日志 SHA256 见 [`docs/CLEAN_README_WALKTHROUGH.md`](docs/CLEAN_README_WALKTHROUGH.md)。
 
 ## 7. PyTorch/Jittor 对齐
 

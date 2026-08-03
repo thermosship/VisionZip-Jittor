@@ -23,7 +23,7 @@
 - [x] 结果表、Loss 曲线、Token 可视化；
 - [x] 训练范围和 non-claims；
 - [x] 机器可读 compact logs；
-- [ ] 在一台干净 AutoDL 实例执行一次 README smoke walkthrough，并保存最终日志；
+- [x] 在独立 GitHub checkout 与 fresh AutoDL conda prefix 执行 README walkthrough；80 tests、合成/真实 CLIP、真实 GPT-2 smoke、Phase 4B preflight 全部通过，见 [`CLEAN_README_WALKTHROUGH.md`](CLEAN_README_WALKTHROUGH.md)；
 - [ ] 创建 submission tag/release 后再次检查所有相对链接。
 
 ## 3. 已解决的主要技术风险
@@ -43,12 +43,10 @@
 
 ## 4. 仍需在提交前完成的材料风险
 
-1. **干净环境 walkthrough**：按 README 从 install/test 到小规模 alignment/training smoke 完整走一遍；大模型/数据下载可引用已校验证据包，但命令必须无误。
-2. **GitHub Release**：普通源码仓库不上传权重和数据；可发布小型 evidence archive，或在 release notes 中提供哈希和获取说明。
-3. **PPT/视频**：尚未开始；应直接复用 `docs/assets` 图表，不要重新手抄数值。
-4. **提交日列表复核**：再次检查 Jittor-Sprouts 是否新增 VisionZip。
-5. **最终声明审计**：全文搜索 `full reproduction`、`SOTA`、`LLaVA-equivalent`、`bitwise exact`、`universal speedup` 等越界表述。
-
+1. **GitHub Release**：从 clean walkthrough 文档提交创建 immutable submission tag/release；只发布源码和 release notes，不上传权重、数据、checkpoint 或大日志。
+2. **PPT/视频**：尚未开始；应直接复用 `docs/assets` 图表，不要重新手抄数值。
+3. **提交日列表复核**：再次检查 Jittor-Sprouts 是否新增 VisionZip。
+4. **最终声明审计**：全文搜索 `full reproduction`、`SOTA`、`LLaVA-equivalent`、`bitwise exact`、`universal speedup` 等越界表述。
 ## 5. 证据包
 
 | 阶段 | 文件 | SHA256 |
@@ -66,4 +64,4 @@
 - 培育期代码与实验材料：**约 93%–96%**；
 - 完整提交（含 PPT、讲稿、视频）：**约 80%–85%**。
 
-剩余工作以“干净环境 walkthrough + PPT/视频”为主，不建议在唯一提交前临时扩展到完整 LLaVA 或论文全部 benchmark。
+干净环境 walkthrough 已完成。剩余工作以“冻结 GitHub tag/release + PPT/视频”为主，不建议在唯一提交前临时扩展到完整 LLaVA 或论文全部 benchmark。

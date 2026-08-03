@@ -11,6 +11,7 @@ Files:
 - `phase4b_training_trace.csv`: all 1,344 Projector optimizer steps with raw/rolling NLL, LR, timing, and finite flag;
 - `phase4b_validation_curve.csv`: all 13 held-out evaluations;
 - `phase5a_kv_cache_summary.csv`: formal cached/uncached correctness, TV, latency, and memory results.
+- `clean_readme_walkthrough_04f098d.json`: compact fresh-checkout/fresh-prefix walkthrough result and SHA256 index for external logs.
 
 Regenerate with `scripts/build_submission_assets.py` and the four archived evidence
 packages listed in `docs/SUBMISSION_READINESS.md`.
