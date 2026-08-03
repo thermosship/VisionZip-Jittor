@@ -2,7 +2,7 @@
 
 使用 **Jittor 原生张量算子**复现 VisionZip 的视觉 Token 压缩核心，并建立可重复的 PyTorch/Jittor 数值对齐流程。
 
-> Current status: Phases 1, 2, 3A, 3B, and Phase 4A are complete. **Phase 4B has passed its benchmark-instrumented CUDA acceptance run; the final versioned evidence archive is being assembled.** The 8,192-sample licensed pilot, 32 frozen feature shards, exact resume path, 1,344-step Projector-only training, held-out metrics, post-warm-up throughput, and current-process peak GPU memory are all recorded.
+> Current status: **Phases 1, 2, 3A, 3B, 4A, and 4B are complete.** Phase 4B passed its benchmark-instrumented CUDA acceptance run and its 45-file final v2 evidence archive was copied to Windows with a matching cross-host SHA256. The 8,192-sample licensed pilot, 32 frozen feature shards, exact resume path, 1,344-step Projector-only training, held-out metrics, post-warm-up throughput, and current-process peak GPU memory are all recorded.
 
 ## 1. 项目目标
 
@@ -15,7 +15,7 @@
 - 仅训练多模态 Projector 的高效微调；
 - 训练、测试、性能和可视化日志。
 
-Completed scope includes Phases 1, 2, 3A, 3B, and Phase 4A. Phase 4B execution has passed and awaits only final archive publication:
+Completed scope includes Phases 1, 2, 3A, 3B, 4A, and 4B:
 
 - 原生 Jittor VisionZip 核心；
 - 独立 PyTorch 参考实现；
@@ -378,7 +378,7 @@ The benchmark-instrumented RTX 4090 run completed all 1,344 optimizer steps with
 
 After 67 warm-up updates, steps 68-1,344 averaged `120.37183717184918 ms` per optimizer update, `132.92145717737577` effective samples/s, and `1413.1492154945145` target tokens/s. The current Python process peaked at `3058 MiB` GPU memory across 1,416 samples.
 
-The deterministic 128-sample generated-caption subset recorded BLEU-1 `0.28304947283049475`, add-one-smoothed BLEU-4 `0.05727683512769526`, and ROUGE-L `0.26176086973563917`. These use one BLIP-2 synthetic reference per image, are not directly comparable with multi-reference COCO metrics, and do not establish high-quality captioning. Full details are in [`docs/PHASE4B_REAL_PAIRED_TRAINING.md`](docs/PHASE4B_REAL_PAIRED_TRAINING.md). The final versioned v2 evidence archive is the remaining publication step before the repository labels Phase 4B complete.
+The deterministic 128-sample generated-caption subset recorded BLEU-1 `0.28304947283049475`, add-one-smoothed BLEU-4 `0.05727683512769526`, and ROUGE-L `0.26176086973563917`. These use one BLIP-2 synthetic reference per image, are not directly comparable with multi-reference COCO metrics, and do not establish high-quality captioning. Full details are in [`docs/PHASE4B_REAL_PAIRED_TRAINING.md`](docs/PHASE4B_REAL_PAIRED_TRAINING.md). Final evidence archive: `VisionZip-Jittor-phase4b-evidence-final-v2-20260803.tar.gz`, SHA256 `2EFEEAA88F18AB11B8431A7DD810B296366073D14B5717D02C72152DBA70C032` (45 files). AutoDL and Windows hashes match; the earlier `VisionZip-Jittor-phase4b-evidence-20260803.tar.gz` remains preserved.
 
 ## 9. 项目结构
 
@@ -445,9 +445,8 @@ VisionZip-Jittor/
 
 ## 11. Next steps
 
-1. Create and transfer the versioned Phase 4B final v2 evidence archive, retain the original archive, and verify matching SHA256 values on AutoDL and Windows.
-2. After the archive hash is recorded in the repository, mark Phase 4B complete.
-3. Plan the next phase separately. Candidate future work includes synchronized repeated performance runs, mixed precision, KV-cache generation, a larger frozen LLM, and evaluation against a compatible licensed multi-reference set. None is implied by the Phase 4B result.
+1. Preserve the completed Phase 4B source, generated artifacts, both evidence archives, and the documented single-reference claim boundary.
+2. Define the next phase in a separate versioned plan before implementing or launching expensive work. Candidate directions include synchronized repeated performance runs, mixed precision, KV-cache generation, a larger frozen LLM, and evaluation against a compatible licensed multi-reference set. None is implied by the Phase 4B result.
 
 ## 12. 许可证与声明
 

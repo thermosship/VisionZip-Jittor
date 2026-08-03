@@ -29,10 +29,8 @@ Only the 1,377,792-parameter Projector is optimized. CLIP/VisionZip features are
 precomputed and GPT-2 remains frozen and hash-identical before and after
 training.
 
-At the time this result document was first committed, the final versioned v2
-evidence archive was still being assembled. Phase 4B should be labeled complete
-only after that archive has been copied to Windows and its SHA256 matches on both
-hosts.
+The final versioned v2 evidence archive was copied from AutoDL to Windows and
+verified with the same SHA256 on both hosts. Phase 4B is complete.
 
 ## 2. Reproducible inputs
 
@@ -191,6 +189,9 @@ configuration, not an end-to-end data-preparation or production-serving claim.
 | Benchmark training summary | `b13532ea76352ebe9fcb3e1c3e0a4c6018f7865f930adc21435503e6daff4b80` |
 | Benchmark metrics JSONL | `f4ab48d472fb1cc74376e0661f3177c8f31d1f3e51eeb895f1173bdb32f6f0ca` |
 | Final Projector checkpoint | `d209bba83b7ee822efa5e29912ce0bc82748fdcb90303f06981f912ee9f928fa` |
+| Final v2 evidence archive | `2EFEEAA88F18AB11B8431A7DD810B296366073D14B5717D02C72152DBA70C032` |
+
+Final archive: `VisionZip-Jittor-phase4b-evidence-final-v2-20260803.tar.gz` (45 files). The AutoDL and Windows SHA256 values match. The older `VisionZip-Jittor-phase4b-evidence-20260803.tar.gz` remains preserved and was not overwritten. The archive includes source/docs, manifests and attribution JSONL, corrected smoke/resume evidence, preserved test failure and successful retry logs, benchmark smoke/final-run evidence, the final Projector checkpoint, and internal `SHA256SUMS`.
 
 Generated dataset images, feature shards, logs, and checkpoints remain outside
 normal Git history. They belong in the versioned evidence archive or the remote

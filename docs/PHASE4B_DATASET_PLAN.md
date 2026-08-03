@@ -2,9 +2,9 @@
 
 ## Status
 
-Phase 4B started at the **versioned planning and data-infrastructure** boundary. This document fixed the source snapshot, subset, attribution policy, storage format, training schedule, evaluation protocol, and acceptance criteria **before** any large download or training run. The planned dataset, features, smoke/resume checks, and benchmark-instrumented 1,344-step CUDA acceptance run have now executed successfully; the final v2 evidence archive is being assembled.
+Phase 4B started at the **versioned planning and data-infrastructure** boundary. This document fixed the source snapshot, subset, attribution policy, storage format, training schedule, evaluation protocol, and acceptance criteria **before** any large download or training run. The planned dataset, features, smoke/resume checks, and benchmark-instrumented 1,344-step CUDA acceptance run executed successfully. Phase 4B is complete, including the cross-host-verified final v2 evidence archive.
 
-No external-dataset training result is claimed by this document. The first large operation must be the preflighted preparation command described below.
+This document preserves the plan that was fixed before execution and now records its completed acceptance result. The preflighted preparation command below remains the reproducible entry point.
 
 ## 1. Objective and boundary
 
@@ -332,4 +332,4 @@ Phase 4B is complete only after a fresh CUDA run and an explicit resume run both
 - test output;
 - archive SHA256.
 
-The fresh run, explicit resume evidence, and runner-generated benchmark evidence now exist. Until the versioned final v2 archive is transferred to Windows and its SHA256 is verified on both hosts, documentation must say **Phase 4B final archive pending**, not complete.
+The fresh run, explicit resume evidence, runner-generated benchmark evidence, and final evidence publication all exist. `VisionZip-Jittor-phase4b-evidence-final-v2-20260803.tar.gz` contains 45 files and has SHA256 `2EFEEAA88F18AB11B8431A7DD810B296366073D14B5717D02C72152DBA70C032`; AutoDL and Windows hashes match. The earlier `VisionZip-Jittor-phase4b-evidence-20260803.tar.gz` remains preserved. **Phase 4B is complete.**

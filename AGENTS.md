@@ -2,9 +2,9 @@
 
 > **Purpose:** This is the authoritative cross-account handoff file for Codex agents working on this reproduction. A new agent may have no access to earlier chats. Read this file completely before modifying code, running expensive jobs, changing claims, or proposing the next phase.
 >
-> **Last authoritative update:** 2026-08-03 (Asia/Shanghai), after the successful benchmark-instrumented Phase 4B 1,344-step CUDA rerun. Source commit `8b510017e4250bc626ca001bcf56cc05b7e09fa9` completed steps `0 -> 1344`, passed every frozen-language/Projector optimizer invariant, reduced held-out NLL from `6.643716599545368` to `2.413187829110486`, and recorded accepted post-warm-up throughput plus current-process peak GPU memory. Result documentation is now being prepared; the only remaining Phase 4B completion action is a new versioned final evidence archive copied to Windows with matching SHA256.
+> **Last authoritative update:** 2026-08-03 (Asia/Shanghai), after completing Phase 4B evidence publication. Training source commit `8b510017e4250bc626ca001bcf56cc05b7e09fa9` completed steps `0 -> 1344`, passed every frozen-language/Projector optimizer invariant, reduced held-out NLL from `6.643716599545368` to `2.413187829110486`, and recorded accepted post-warm-up throughput plus current-process peak GPU memory. Final archive `VisionZip-Jittor-phase4b-evidence-final-v2-20260803.tar.gz` contains 45 files and has matching AutoDL/Windows SHA256 `2EFEEAA88F18AB11B8431A7DD810B296366073D14B5717D02C72152DBA70C032`; the original Phase 4B archive is retained.
 >
-> **Current phase boundary:** Phases 1, 2, 3A, 3B, and Phase 4A are complete. **Phase 4B has passed every technical acceptance gate and is final-archive pending.** Dataset materialization, 32 frozen feature shards, corrected fresh/resume smokes, 60-test Windows/AutoDL validation, the complete benchmark-instrumented training run, held-out NLL/perplexity, deterministic 128-sample single-synthetic-reference generation metrics, runner-measured throughput, and sampled process peak GPU memory all exist. Do not label Phase 4B complete until the v2 archive is transferred and its SHA256 is verified on both hosts.
+> **Current phase boundary:** **Phases 1, 2, 3A, 3B, 4A, and 4B are complete.** Dataset materialization, 32 frozen feature shards, corrected fresh/resume smokes, 60-test Windows/AutoDL validation, the complete benchmark-instrumented training run, held-out NLL/perplexity, deterministic 128-sample single-synthetic-reference generation metrics, runner-measured throughput, sampled process peak GPU memory, and cross-host evidence integrity are recorded. The next phase must begin with a versioned scope and acceptance plan; do not silently expand Phase 4B claims.
 
 ## 1. Mandatory instructions for every future Codex agent
 
@@ -91,7 +91,7 @@ The user's low local RAM does not limit remote model loading. Avoid opening larg
 
 ## 3. Current live state
 
-Last authoritative remote experiment state is from 2026-08-03 after the benchmark-instrumented Phase 4B full run. Windows, GitHub, and AutoDL were synchronized at `8b51001` when training started; that exact full hash is recorded in the run. The source tree is now dirty only with Phase 4B result documentation. Generated artifacts remain intentionally untracked:
+Last authoritative remote experiment state is from 2026-08-03 after the benchmark-instrumented Phase 4B full run and final evidence publication. Training used exact source commit `8b510017e4250bc626ca001bcf56cc05b7e09fa9`; Phase 4B result documentation commit `b943ab5` is synchronized on Windows, GitHub, and AutoDL. The completion-status documentation is currently dirty on Windows pending its final commit. Generated artifacts remain intentionally untracked:
 
 ```text
 Remote host: autodl-container-10894aa74d-da4e9cbe
@@ -694,7 +694,7 @@ The retained validation generation was poor (`" the shows..."`). It proves execu
 
 Detailed document: `docs/PHASE4A_PAIRED_TRAINING.md`.
 
-### 6.6 Phase 4B -- licensed real paired training: TECHNICAL ACCEPTANCE PASSED, FINAL ARCHIVE PENDING
+### 6.6 Phase 4B -- licensed real paired training: COMPLETE
 
 Validated data and frozen features:
 
@@ -963,15 +963,18 @@ The project currently proves:
 - native Jittor GPT-2 text-logit alignment and real execution;
 - Projector-only gradients through a frozen real GPT-2;
 - deterministic paired-fixture parsing, splitting, batching, and target-only labels;
-- repeated Projector-only training with finite updates;
+- licensed 8,192-sample external paired-data materialization with row-level provenance and deterministic 7,168/1,024 split;
+- 32 verified frozen CLIP/VisionZip feature shards;
+- repeated Projector-only training with finite updates, frozen/hash-unchanged GPT-2, held-out NLL/perplexity, and single-synthetic-reference generation metrics;
 - complete Projector/Adam checkpoint serialization and validated resume;
-- numerical next-step replay within the declared `1e-5` CUDA tolerance.
+- numerical next-step replay within the declared `1e-5` CUDA tolerance;
+- runner-measured post-warm-up training throughput, sampled process peak GPU memory, and cross-host evidence integrity.
 
 It does **not** yet prove:
 
-- useful image captioning or VQA quality;
-- generalization beyond the three generated fixture images;
-- benchmark-quality downstream metrics;
+- human-level, production-quality, or state-of-the-art image captioning/VQA;
+- direct comparability with multi-reference COCO metrics;
+- quality scaling beyond the fixed 8,192-sample pilot and frozen GPT-2-small setup;
 - LLaVA-equivalent behavior;
 - bitwise deterministic CUDA resume;
 - production prefill or training speedup;
@@ -982,25 +985,18 @@ It does **not** yet prove:
 
 The fresh Phase 4A validation loss increased from `7.54148` to `7.75218`, and the generated validation text was poor. Retain both facts in future reports. They do not invalidate the infrastructure acceptance result, but they prohibit any visual-language quality claim.
 
-## 11. Next exact actions -- Phase 4B, FINAL ARCHIVE PENDING
+## 11. Next exact actions -- NEXT PHASE PLANNING
 
-Phase name:
-
-```text
-Phase 4B: licensed paired-dataset training and held-out caption evaluation
-```
-
-All technical acceptance gates now pass. The remaining work is evidence publication and final status transition.
+Phase 4B is complete. Its final v2 archive is `VisionZip-Jittor-phase4b-evidence-final-v2-20260803.tar.gz` (45 files), SHA256 `2EFEEAA88F18AB11B8431A7DD810B296366073D14B5717D02C72152DBA70C032`, verified identically on AutoDL and Windows. The earlier archive remains preserved.
 
 Exact next actions:
 
-1. Commit and push the Phase 4B result documentation without generated artifacts, then synchronize AutoDL.
-2. Create a new archive named `VisionZip-Jittor-phase4b-evidence-final-v2-20260803.tar.gz` in a new staging directory. Include source bundle/docs, config, prepared manifest plus attribution JSONL, feature manifest, corrected smoke/resume summaries, preserved benchmark test failure and retry logs, benchmark smoke evidence, final benchmark summary/metrics/environment files, final checkpoint, and internal SHA256SUMS.
-3. Copy the v2 archive to Windows, retain `VisionZip-Jittor-phase4b-evidence-20260803.tar.gz` unchanged, and verify matching SHA256 values on AutoDL and Windows.
-4. Record the v2 archive filename/hash in README, the dataset plan, the dedicated Phase 4B result document, and this handoff; then mark Phase 4B complete.
-5. Only after that commit is synchronized should the next phase be designed.
+1. Commit and push this Phase 4B completion-status update, then fast-forward AutoDL.
+2. Create a versioned next-phase plan before implementation. The plan must select one bounded primary objective, define measurable acceptance gates, identify required artifacts, estimate GPU/storage/runtime, and preserve the Phase 4B single-reference claim boundary.
+3. Prefer a low-risk progression that improves inference realism without retraining large frozen components; candidate work includes native Jittor KV-cache generation and synchronized repeated latency/memory benchmarks. Mixed precision, a larger frozen LLM, and licensed multi-reference evaluation should remain separate later phases unless explicitly scoped.
+4. Update this handoff immediately after the next phase name and acceptance criteria are fixed.
 
-Current claim boundary: technical Phase 4B acceptance is passed, but repository status remains final-archive pending until cross-host evidence integrity is recorded.
+Current claim boundary: Phase 4B proves licensed-pilot Projector training and reproducible held-out/benchmark evidence, not state-of-the-art captioning or multi-reference COCO parity.
 
 ## 12. Network and recovery notes
 
@@ -1056,5 +1052,6 @@ Use the environment settings in section 4.3. Do not repeatedly delete the workin
 | 2026-08-03 | `0f53a93` synchronized on Windows, GitHub, and AutoDL; benchmark smoke artifacts untracked | AutoDL benchmark instrumentation validation is complete. The first full AutoDL discovery hit a preserved intermittent Jittor process crash, the isolated affected test passed, and retry 1 passed all 60 tests with 8 environment-only skips. A fresh CUDA smoke then passed steps 0 -> 68 with exact frozen-language and Projector optimizer invariants. Its post-warm-up benchmark was accepted and measured optimizer step 68 at 117.05001987412734 effective samples/s and 1119.2908150463427 target tokens/s, with current-process peak GPU memory 1562 MiB from 4 samples. | Preserve the smoke namespace, launch a new full 0 -> 1344 benchmark run in `training_benchmark_0f53a93`, verify all acceptance fields, then create a versioned final evidence archive without overwriting the original archive. |
 
 | 2026-08-03 | `8b51001` synchronized; Phase 4B result docs dirty on Windows | The new full benchmark run finished with exit code 0 and `passed=true`: steps 0 -> 1344, frozen/hash-unchanged GPT-2, exact Projector-only scope, finite updates, held-out NLL `6.643716599545368 -> 2.413187829110486`, 1,277 post-warm-up updates at 132.92145717737577 effective samples/s and 1413.1492154945145 target tokens/s, and 3058 MiB current-process peak GPU memory. The technical acceptance gap is closed. | Commit/push/sync the result docs, create `VisionZip-Jittor-phase4b-evidence-final-v2-20260803.tar.gz` without overwriting the original archive, verify its SHA256 on both hosts, then mark Phase 4B complete. |
+| 2026-08-03 | `b943ab5` synchronized; Phase 4B completion docs dirty on Windows | Result documentation was committed and synchronized. Final v2 archive `VisionZip-Jittor-phase4b-evidence-final-v2-20260803.tar.gz` was created with 45 files, internal `SHA256SUMS` passed, copied to Windows, and matched AutoDL/Windows SHA256 `2EFEEAA88F18AB11B8431A7DD810B296366073D14B5717D02C72152DBA70C032`. The original archive remains preserved. Phase 4B is complete. | Commit/push/sync the completion status, then create a versioned next-phase scope and acceptance plan before implementation. |
 
 When adding a new row, keep older rows. The newest row should state the exact commit or dirty-worktree state, the verified result, and the next blocking action.
