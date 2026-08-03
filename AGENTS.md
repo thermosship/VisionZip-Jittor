@@ -2,9 +2,9 @@
 
 > **Purpose:** This is the authoritative cross-account handoff file for Codex agents working on this reproduction. A new agent may have no access to earlier chats. Read this file completely before modifying code, running expensive jobs, changing claims, or proposing the next phase.
 >
-> **Last authoritative update:** 2026-08-03 (Asia/Shanghai), after the successful 1,344-step Phase 4B CUDA run and the subsequent local implementation of the remaining benchmark-evidence instrumentation. The completed run at source commit `88e6e8b` passed all training invariants and reduced held-out NLL from `6.643716854607091` to `2.4616965070888344`, but its summary did not record post-warm-up throughput or sampled process peak GPU memory. Benchmark instrumentation is committed locally as `20c8b59`, adds those fields plus focused tests, and has passed all 60 Windows tests with 15 environment-only skips; the old successful run and evidence archive remain preserved and must not be overwritten.
+> **Last authoritative update:** 2026-08-03 (Asia/Shanghai), after the successful benchmark-instrumented Phase 4B 1,344-step CUDA rerun. Source commit `8b510017e4250bc626ca001bcf56cc05b7e09fa9` completed steps `0 -> 1344`, passed every frozen-language/Projector optimizer invariant, reduced held-out NLL from `6.643716599545368` to `2.413187829110486`, and recorded accepted post-warm-up throughput plus current-process peak GPU memory. Result documentation is now being prepared; the only remaining Phase 4B completion action is a new versioned final evidence archive copied to Windows with matching SHA256.
 >
-> **Current phase boundary:** Phases 1, 2, 3A, 3B, and Phase 4A are complete. **Phase 4B is still in progress only because one written acceptance item remains open:** `docs/PHASE4B_DATASET_PLAN.md` requires throughput and peak GPU memory after warm-up in the evidence summary. Dataset materialization, 32 frozen feature shards, 57-test Windows/AutoDL baselines, corrected fresh/resume smokes, the full 1,344-step optimization, held-out NLL/perplexity, deterministic 128-sample single-synthetic-reference generation metrics, and a first evidence archive all exist. The next blocking action is to push/sync benchmark commit `20c8b59` and rerun the 1,344-step job in a new namespace so the missing evidence is measured by the runner itself.
+> **Current phase boundary:** Phases 1, 2, 3A, 3B, and Phase 4A are complete. **Phase 4B has passed every technical acceptance gate and is final-archive pending.** Dataset materialization, 32 frozen feature shards, corrected fresh/resume smokes, 60-test Windows/AutoDL validation, the complete benchmark-instrumented training run, held-out NLL/perplexity, deterministic 128-sample single-synthetic-reference generation metrics, runner-measured throughput, and sampled process peak GPU memory all exist. Do not label Phase 4B complete until the v2 archive is transferred and its SHA256 is verified on both hosts.
 
 ## 1. Mandatory instructions for every future Codex agent
 
@@ -91,7 +91,7 @@ The user's low local RAM does not limit remote model loading. Avoid opening larg
 
 ## 3. Current live state
 
-Last authoritative remote experiment state is from 2026-08-03 after the full Phase 4B run. Windows and AutoDL source were at `88e6e8b`; the AutoDL full run used that exact source commit. Benchmark source commit `20c8b59` is present locally and all 60 Windows tests pass with 15 skips. Only this handoff update remains uncommitted before push/sync. Generated artifacts remain intentionally untracked:
+Last authoritative remote experiment state is from 2026-08-03 after the benchmark-instrumented Phase 4B full run. Windows, GitHub, and AutoDL were synchronized at `8b51001` when training started; that exact full hash is recorded in the run. The source tree is now dirty only with Phase 4B result documentation. Generated artifacts remain intentionally untracked:
 
 ```text
 Remote host: autodl-container-10894aa74d-da4e9cbe
@@ -201,6 +201,27 @@ First evidence archive on Windows: VisionZip-Jittor-phase4b-evidence-20260803.ta
 First evidence archive SHA256: 239AA45FDE838E2820AAC3D8B3546B5A9AD827FCF5DD471499D4F4240A47E88A
 Remaining acceptance gap: the successful summary lacks runner-measured post-warm-up throughput and peak process GPU memory
 Benchmark correction commit: 20c8b59 feat: record phase-four training benchmark evidence; old run/archive are preserved
+Benchmark handoff commit: 0f53a93 docs: record phase-four benchmark evidence gap
+Benchmark smoke handoff commit: 8b51001 docs: record phase-four benchmark smoke
+First benchmark-aware AutoDL full discovery: intermittent Jittor process crash preserved in logs/phase4b/benchmark_0f53a93/autodl_tests.log
+Affected isolated test: passed
+AutoDL full discovery retry 1: 60 tests OK with 8 environment-only skips
+Benchmark smoke directory: outputs/phase4b/commoncatalog_cc_by_8k/smoke_benchmark_0f53a93
+Benchmark smoke result: exit code 0, passed=true, steps 0 -> 68, benchmark accepted
+Benchmark smoke post-warm-up step 68: 117.05001987412734 effective samples/s, 1119.2908150463427 target tokens/s, 1562 MiB current-process peak GPU memory
+Final benchmark run source: 8b510017e4250bc626ca001bcf56cc05b7e09fa9
+Final benchmark run directory: outputs/phase4b/commoncatalog_cc_by_8k/training_benchmark_0f53a93
+Final benchmark log directory: logs/phase4b/training_benchmark_0f53a93
+Final benchmark run result: exit code 0, passed=true, completed_training=true, steps 0 -> 1344, optimizer_n_step=1344
+Final benchmark invariants: all updates finite, GPT-2 all stop-grad and hash unchanged, exact Projector-only optimizer scope, Projector trainable after evaluation
+Final held-out NLL: 6.643716599545368 -> 2.413187829110486 (63.6771407546851% reduction)
+Final held-out perplexity: 767.9438354472138 -> 11.169510943754625 (68.7535774228867x lower)
+Final 128-sample generation: BLEU-1 0.28304947283049475, BLEU-4 0.05727683512769526, ROUGE-L 0.26176086973563917
+Accepted benchmark range: steps 68 -> 1344, 1277 measured updates, mean 120.37183717184918 ms/update
+Accepted throughput: 132.92145717737577 effective samples/s and 1413.1492154945145 target tokens/s
+Accepted current-process GPU peak: 3058 MiB from 1416 samples at 0.1-second interval
+Final benchmark summary/checkpoint hashes: b13532ea76352ebe9fcb3e1c3e0a4c6018f7865f930adc21435503e6daff4b80 / d209bba83b7ee822efa5e29912ce0bc82748fdcb90303f06981f912ee9f928fa
+Remaining completion action: create and cross-host verify a new versioned v2 evidence archive; preserve the first archive
 ```
 
 The Phase 4A source/config/test implementation remains committed as `7a62be2`; synchronized Phase 4A handoff baseline is `212b81e`. Generated remote paths include:
@@ -673,7 +694,7 @@ The retained validation generation was poor (`" the shows..."`). It proves execu
 
 Detailed document: `docs/PHASE4A_PAIRED_TRAINING.md`.
 
-### 6.6 Phase 4B -- licensed real paired training: IN PROGRESS (benchmark evidence rerun pending)
+### 6.6 Phase 4B -- licensed real paired training: TECHNICAL ACCEPTANCE PASSED, FINAL ARCHIVE PENDING
 
 Validated data and frozen features:
 
@@ -687,43 +708,59 @@ Prepared samples SHA256: c2b205622a67349ee22547e2648c264cd6a71979906d57cc4b59fed
 Feature manifest SHA256: 2673aafd3ec7084c7eae54cd8eaac693fc21f84892cccf60a0c14f8c349a36a9
 ```
 
-Corrected smoke and resume validation:
+Resume and test evidence:
 
 ```text
-Fresh: steps 0 -> 2, passed=true, optimizer_n_step=2
-Resume: steps 2 -> 4, passed=true, optimizer_n_step=4
-Both: frozen/unchanged GPT-2, exact Projector-only optimizer scope, finite updates, restored Projector trainability
+Corrected fresh smoke: steps 0 -> 2, passed=true, optimizer_n_step=2
+Corrected explicit resume: steps 2 -> 4, passed=true, optimizer_n_step=4
+Benchmark smoke: steps 0 -> 68, passed=true, training_benchmark_accepted=true
+Windows: 60 tests OK, 15 environment-only skips
+AutoDL retry 1: 60 tests OK, 8 environment-only skips
+Preserved history: one intermittent Jittor full-suite process crash and the original eval-state false negative
 ```
 
-First complete training run (retained historical result; do not overwrite):
+Final benchmark-instrumented complete run:
 
 ```text
-Source commit: 88e6e8ba2823758aee724edb811eb0824a297380
+Source commit: 8b510017e4250bc626ca001bcf56cc05b7e09fa9
 Optimizer steps: 1,344 / 1,344
 Effective batch: 4 microbatch x 4 accumulation = 16 samples/update
-Result: passed=true, completed_training=true
-Initial held-out NLL/PPL: 6.643716854607091 / 767.9440313203165
-Final held-out NLL/PPL: 2.4616965070888344 / 11.724685689282781
-NLL relative reduction: 62.94699848050014%
+Result: passed=true, completed_training=true, training_benchmark_accepted=true
+Initial held-out NLL/PPL: 6.643716599545368 / 767.9438354472138
+Final held-out NLL/PPL: 2.413187829110486 / 11.169510943754625
+NLL relative reduction: 63.6771407546851%
+Perplexity reduction: 68.7535774228867x
 Best/final step: 1,344
-Projector max parameter delta: 0.010908542200922966
-Checkpoint SHA256: f9c6ea2d970938f03191d0027aa444f9affc99f899a1d26ab64b3274c4755c15
-Summary SHA256: cd362cc9fc71676c5a3fdc87f25259aaf726f09862d8fb0e03654273e2fff3ac
-Metrics JSONL SHA256: 01abe1cee0691c6c0cdb1e9bdd65016947e9a1217b6a2699145907b99347ff30
+Projector max parameter delta: 0.012454323470592499
+Summary SHA256: b13532ea76352ebe9fcb3e1c3e0a4c6018f7865f930adc21435503e6daff4b80
+Metrics JSONL SHA256: f4ab48d472fb1cc74376e0661f3177c8f31d1f3e51eeb895f1173bdb32f6f0ca
+Final checkpoint SHA256: d209bba83b7ee822efa5e29912ce0bc82748fdcb90303f06981f912ee9f928fa
+```
+
+Accepted post-warm-up benchmark:
+
+```text
+Warm-up: optimizer steps 1 -> 67
+Measured optimizer steps: 68 -> 1344 (1,277 updates)
+Mean optimizer-step compute: 120.37183717184918 ms
+Effective throughput: 132.92145717737577 samples/s
+Target-token throughput: 1413.1492154945145 tokens/s
+Current-process peak GPU memory: 3058 MiB
+Memory sampling: 1,416 samples at 0.1-second interval
 ```
 
 Generation evaluation boundary:
 
 ```text
 Samples: deterministic held-out subset of 128
-BLEU-1: 0.31536426498207987
-BLEU-4: 0.07713203296811436
-ROUGE-L: 0.2976671870474831
+BLEU-1: 0.28304947283049475
+BLEU-4: 0.05727683512769526
+ROUGE-L: 0.26176086973563917
 Reference policy: one BLIP-2 synthetic caption per image
-Non-claim: these numbers are not directly comparable to multi-reference COCO benchmarks and do not prove high-quality captioning
+Non-claim: not directly comparable with multi-reference COCO metrics and does not prove high-quality captioning
 ```
 
-The first full run is technically successful but does not close Phase 4B because its runner summary omitted the acceptance-required post-warm-up throughput and peak process GPU memory. Manual observation around 2,709--2,791 MiB is contextual only and must not be substituted for an instrumented measurement. The current Windows change adds a current-PID `nvidia-smi` sampler beginning before optimizer step 68, aggregates steps 68--1,344 from per-step metrics, and makes completed runs fail integrity if valid benchmark evidence is absent. A fresh full rerun in a new output/log namespace is required.
+The technical acceptance gap is closed. The sole remaining administrative completion step is to package a new versioned final v2 evidence archive, retain the original archive, transfer the v2 archive to Windows, and verify identical SHA256 values on both hosts.
 
 ## 7. Important source map
 
@@ -945,7 +982,7 @@ It does **not** yet prove:
 
 The fresh Phase 4A validation loss increased from `7.54148` to `7.75218`, and the generated validation text was poor. Retain both facts in future reports. They do not invalidate the infrastructure acceptance result, but they prohibit any visual-language quality claim.
 
-## 11. Next exact actions -- Phase 4B, IN PROGRESS
+## 11. Next exact actions -- Phase 4B, FINAL ARCHIVE PENDING
 
 Phase name:
 
@@ -953,18 +990,17 @@ Phase name:
 Phase 4B: licensed paired-dataset training and held-out caption evaluation
 ```
 
-The data, features, smoke/resume behavior, and first complete training result are validated. The sole remaining acceptance gap is instrumented benchmark evidence.
+All technical acceptance gates now pass. The remaining work is evidence publication and final status transition.
 
 Exact next actions:
 
-1. Commit this handoff update, then push benchmark source commit `20c8b59` and the handoff commit without generated artifacts.
-2. Sync AutoDL and rerun the full 60-test suite in the Jittor environment.
-3. Launch a fresh 1,344-step CUDA run in `tmux` using new `training_benchmark_<commit>` and matching log directories. Never overwrite `training_88e6e8b`, its logs, or the first evidence archive.
-4. Verify `passed=true`, `completed_training=true`, `final_optimizer_step=1344`, `optimizer_n_step=1344`, unchanged GPT-2, finite updates, `training_benchmark_accepted=true`, measured optimizer steps greater than zero, positive sample/token throughput, and a non-null sampled peak process GPU-memory value.
-5. Create a new versioned final evidence archive, transfer it to Windows, and verify matching SHA256 on both hosts. Keep the first archive.
-6. Update `README.md`, `docs/PHASE4B_DATASET_PLAN.md`, a dedicated Phase 4B results document, and this handoff. Only then change the Phase 4B status to complete.
+1. Commit and push the Phase 4B result documentation without generated artifacts, then synchronize AutoDL.
+2. Create a new archive named `VisionZip-Jittor-phase4b-evidence-final-v2-20260803.tar.gz` in a new staging directory. Include source bundle/docs, config, prepared manifest plus attribution JSONL, feature manifest, corrected smoke/resume summaries, preserved benchmark test failure and retry logs, benchmark smoke evidence, final benchmark summary/metrics/environment files, final checkpoint, and internal SHA256SUMS.
+3. Copy the v2 archive to Windows, retain `VisionZip-Jittor-phase4b-evidence-20260803.tar.gz` unchanged, and verify matching SHA256 values on AutoDL and Windows.
+4. Record the v2 archive filename/hash in README, the dataset plan, the dedicated Phase 4B result document, and this handoff; then mark Phase 4B complete.
+5. Only after that commit is synchronized should the next phase be designed.
 
-Current claim boundary: the first full training and deterministic held-out evaluation are real and reproducible, but Phase 4B remains formally in progress until the runner-generated post-warm-up throughput/peak-memory evidence and final versioned archive exist.
+Current claim boundary: technical Phase 4B acceptance is passed, but repository status remains final-archive pending until cross-host evidence integrity is recorded.
 
 ## 12. Network and recovery notes
 
@@ -1018,5 +1054,7 @@ Use the environment settings in section 4.3. Do not repeatedly delete the workin
 | 2026-08-03 | `20c8b59` committed locally; push/AutoDL validation pending | The first full 1,344-step CUDA run passed with unchanged frozen GPT-2 and held-out NLL `6.643716854607091 -> 2.4616965070888344`; deterministic 128-sample single-synthetic-reference generation recorded BLEU-1 `0.31536426498207987`, BLEU-4 `0.07713203296811436`, and ROUGE-L `0.2976671870474831`. A 38-entry evidence archive was transferred and matched SHA256 `239AA45FDE838E2820AAC3D8B3546B5A9AD827FCF5DD471499D4F4240A47E88A`. Audit found the summary still lacked acceptance-required post-warm-up throughput and runner-sampled process peak GPU memory. Commit `20c8b59` adds a pure-Python benchmark aggregator, a current-PID `nvidia-smi` sampler starting before step 68, completed-run integrity enforcement, and focused tests. Full Windows discovery now passes 60 tests with 15 environment-only skips; old run/archive remain preserved. | Commit this handoff update, push/sync `20c8b59`, run AutoDL tests, then rerun all 1,344 steps in a new benchmark namespace and create a versioned final evidence archive. |
 
 | 2026-08-03 | `0f53a93` synchronized on Windows, GitHub, and AutoDL; benchmark smoke artifacts untracked | AutoDL benchmark instrumentation validation is complete. The first full AutoDL discovery hit a preserved intermittent Jittor process crash, the isolated affected test passed, and retry 1 passed all 60 tests with 8 environment-only skips. A fresh CUDA smoke then passed steps 0 -> 68 with exact frozen-language and Projector optimizer invariants. Its post-warm-up benchmark was accepted and measured optimizer step 68 at 117.05001987412734 effective samples/s and 1119.2908150463427 target tokens/s, with current-process peak GPU memory 1562 MiB from 4 samples. | Preserve the smoke namespace, launch a new full 0 -> 1344 benchmark run in `training_benchmark_0f53a93`, verify all acceptance fields, then create a versioned final evidence archive without overwriting the original archive. |
+
+| 2026-08-03 | `8b51001` synchronized; Phase 4B result docs dirty on Windows | The new full benchmark run finished with exit code 0 and `passed=true`: steps 0 -> 1344, frozen/hash-unchanged GPT-2, exact Projector-only scope, finite updates, held-out NLL `6.643716599545368 -> 2.413187829110486`, 1,277 post-warm-up updates at 132.92145717737577 effective samples/s and 1413.1492154945145 target tokens/s, and 3058 MiB current-process peak GPU memory. The technical acceptance gap is closed. | Commit/push/sync the result docs, create `VisionZip-Jittor-phase4b-evidence-final-v2-20260803.tar.gz` without overwriting the original archive, verify its SHA256 on both hosts, then mark Phase 4B complete. |
 
 When adding a new row, keep older rows. The newest row should state the exact commit or dirty-worktree state, the verified result, and the next blocking action.

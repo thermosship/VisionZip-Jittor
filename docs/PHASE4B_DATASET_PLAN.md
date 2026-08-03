@@ -2,7 +2,7 @@
 
 ## Status
 
-Phase 4B has started at the **versioned planning and data-infrastructure** boundary. This document fixes the source snapshot, subset, attribution policy, storage format, training schedule, evaluation protocol, and acceptance criteria **before** any large download or training run.
+Phase 4B started at the **versioned planning and data-infrastructure** boundary. This document fixed the source snapshot, subset, attribution policy, storage format, training schedule, evaluation protocol, and acceptance criteria **before** any large download or training run. The planned dataset, features, smoke/resume checks, and benchmark-instrumented 1,344-step CUDA acceptance run have now executed successfully; the final v2 evidence archive is being assembled.
 
 No external-dataset training result is claimed by this document. The first large operation must be the preflighted preparation command described below.
 
@@ -239,7 +239,7 @@ Training must preserve Phase 4A invariants:
 - every loss, gradient, and update is finite;
 - checkpoint resume restores Projector, Adam, scheduler, epoch/order cursor, gradient-accumulation cursor, and RNG state.
 
-The Phase 4B trainer and evaluator are the next implementation slice after dataset/feature preparation infrastructure.
+The Phase 4B trainer and evaluator were implemented after dataset/feature preparation. The accepted run used the schedule above without weakening the predeclared gates.
 
 ## 7. Held-out evaluation policy
 
@@ -306,6 +306,19 @@ It must not claim human-level caption quality, state-of-the-art performance, or 
 - an interrupted run resumes to the same next-batch order and optimizer/scheduler state;
 - evidence summary records throughput and peak GPU memory after warm-up.
 
+### 8.1 Executed acceptance result
+
+The benchmark-instrumented fresh run at source commit `8b510017e4250bc626ca001bcf56cc05b7e09fa9` passed all training/evaluation gates:
+
+- completed optimizer steps `0 -> 1344` with Adam `n_step=1344`;
+- final held-out NLL `2.413187829110486` versus baseline `6.643716599545368`;
+- final held-out perplexity `11.169510943754625` versus baseline `767.9438354472138`;
+- frozen/hash-unchanged GPT-2 and exact Projector-only optimizer scope;
+- finite updates and restored Projector trainability after evaluation;
+- accepted post-warm-up measurement over steps 68-1,344: `132.92145717737577` effective samples/s, `1413.1492154945145` target tokens/s, and `3058 MiB` current-process peak GPU memory.
+
+The explicit corrected resume smoke passed steps 2 -> 4. Full numeric results and claim limits are recorded in [`PHASE4B_REAL_PAIRED_TRAINING.md`](PHASE4B_REAL_PAIRED_TRAINING.md).
+
 ## 9. Evidence and completion boundary
 
 Phase 4B is complete only after a fresh CUDA run and an explicit resume run both pass, followed by a Windows evidence archive containing at least:
@@ -319,4 +332,4 @@ Phase 4B is complete only after a fresh CUDA run and an explicit resume run both
 - test output;
 - archive SHA256.
 
-Until those artifacts exist, documentation must say **Phase 4B in progress**, not complete.
+The fresh run, explicit resume evidence, and runner-generated benchmark evidence now exist. Until the versioned final v2 archive is transferred to Windows and its SHA256 is verified on both hosts, documentation must say **Phase 4B final archive pending**, not complete.

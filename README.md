@@ -2,7 +2,7 @@
 
 使用 **Jittor 原生张量算子**复现 VisionZip 的视觉 Token 压缩核心，并建立可重复的 PyTorch/Jittor 数值对齐流程。
 
-> Current status: Phases 1, 2, 3A, 3B, and Phase 4A are complete. **Phase 4B is in progress**: the licensed dataset decision, pinned 8,192-sample pilot configuration, preparation/preflight code, attribution manifest, and sharded frozen-feature infrastructure are implemented. No external dataset has been downloaded and no Phase 4B training or held-out result is claimed yet.
+> Current status: Phases 1, 2, 3A, 3B, and Phase 4A are complete. **Phase 4B has passed its benchmark-instrumented CUDA acceptance run; the final versioned evidence archive is being assembled.** The 8,192-sample licensed pilot, 32 frozen feature shards, exact resume path, 1,344-step Projector-only training, held-out metrics, post-warm-up throughput, and current-process peak GPU memory are all recorded.
 
 ## 1. 项目目标
 
@@ -15,7 +15,7 @@
 - 仅训练多模态 Projector 的高效微调；
 - 训练、测试、性能和可视化日志。
 
-Completed scope includes Phases 1, 2, 3A, 3B, and Phase 4A. Phase 4B preparation infrastructure is currently under validation:
+Completed scope includes Phases 1, 2, 3A, 3B, and Phase 4A. Phase 4B execution has passed and awaits only final archive publication:
 
 - 原生 Jittor VisionZip 核心；
 - 独立 PyTorch 参考实现；
@@ -33,7 +33,8 @@ Completed scope includes Phases 1, 2, 3A, 3B, and Phase 4A. Phase 4B preparation
 - 64/128/192 三档真实 CLIP → VisionZip → Projector → GPT-2 路径的 CUDA 验收。;
 - Phase 4A versioned paired manifests, deterministic splits, and target-only causal masks;
 - repeated Projector-only training on precomputed real CLIP/VisionZip tokens, JSONL metrics, complete Projector/Adam checkpoints, and resume.
-- Phase 4B pinned licensed-data configuration, deterministic 7,168/1,024 split, row-level attribution records, storage preflight, and resumable 256-sample feature shards.
+- Phase 4B pinned licensed-data configuration, deterministic 7,168/1,024 split, row-level attribution records, storage preflight, and 32 verified frozen-feature shards;
+- 1,344-step real paired Projector-only training with exact frozen-GPT-2 invariants, checkpoint resume, full held-out NLL/perplexity, deterministic single-reference BLEU/ROUGE, and accepted post-warm-up throughput/peak-memory evidence.
 
 ## 2. 上游版本与复现范围
 
@@ -48,7 +49,7 @@ Snapshot date: 2026-08-01
 
 详细版本记录见 [`references/UPSTREAM.md`](references/UPSTREAM.md)，第一阶段数值结果见 [`docs/PHASE1_RESULTS.md`](docs/PHASE1_RESULTS.md)，第二阶段真实 CLIP 实测结果见 [`docs/PHASE2_REAL_CLIP.md`](docs/PHASE2_REAL_CLIP.md)，Phase 3A Projector smoke 见 [`docs/PHASE3_PROJECTOR_FROZEN_LLM.md`](docs/PHASE3_PROJECTOR_FROZEN_LLM.md)，Phase 3B 真实 GPT-2 结果见 [`docs/PHASE3B_REAL_GPT2.md`](docs/PHASE3B_REAL_GPT2.md)。 Phase 4A paired-training results are in [`docs/PHASE4A_PAIRED_TRAINING.md`](docs/PHASE4A_PAIRED_TRAINING.md).
 
-Phase 4B dataset, licensing, storage, feature, schedule, evaluation, and acceptance policy is fixed in [`docs/PHASE4B_DATASET_PLAN.md`](docs/PHASE4B_DATASET_PLAN.md).
+Phase 4B dataset/licensing policy is fixed in [`docs/PHASE4B_DATASET_PLAN.md`](docs/PHASE4B_DATASET_PLAN.md), and the executed training, held-out metrics, benchmark evidence, integrity checks, and claim boundary are recorded in [`docs/PHASE4B_REAL_PAIRED_TRAINING.md`](docs/PHASE4B_REAL_PAIRED_TRAINING.md).
 
 本仓库没有复制官方 LLaVA 模型代码。`reference/pytorch_visionzip.py` 是为了框架数值对齐而编写的独立参考模块。
 
@@ -369,21 +370,15 @@ An explicit second invocation resumed from step 10 and continued to step 30 with
 
 This three-image run is an infrastructure smoke/overfit test. Its validation loss did not improve and its generated text was poor; neither is presented as captioning quality or generalization evidence. Full commands, schemas, hashes, acceptance criteria, and non-claims are in [`docs/PHASE4A_PAIRED_TRAINING.md`](docs/PHASE4A_PAIRED_TRAINING.md). Evidence archive: `VisionZip-Jittor-phase4a-evidence-20260803.tar.gz`, SHA256 `01942F1FD7E82FAF6EB5E8BCB9FFCA9C2474B50718EEA47E00BA446960926858` (12 entries).
 
-### 8.12 Phase 4B licensed paired-data preparation (in progress)
+### 8.12 Phase 4B licensed real paired training (acceptance run passed)
 
-Phase 4B fixes the pilot dataset to `common-canvas/commoncatalog-cc-by` at revision `80f50fe4a1ca937f37a11be3f8eee5199d776ff3`. The pilot reads five explicitly pinned Parquet objects from the `512-768` least-dimension and square-aspect bucket, containing 9,621 source rows and about 1.264 GB of source data. It materializes exactly 8,192 accepted CC-BY samples, with a deterministic seed-2026 split of 7,168 train and 1,024 validation samples.
+Phase 4B materialized exactly 8,192 CC-BY samples from the pinned `common-canvas/commoncatalog-cc-by` revision, retained row-level attribution/provenance, and produced 32 verified float32 CLIP/VisionZip feature shards at nominal budget 64 (65 tokens including CLS). The deterministic split is 7,168 train and 1,024 held-out samples.
 
-The checked-in infrastructure currently provides:
+The benchmark-instrumented RTX 4090 run completed all 1,344 optimizer steps with `passed: true`, finite Projector-only updates, and a frozen/hash-unchanged 124,439,808-parameter GPT-2. Held-out target NLL improved from `6.643716599545368` to `2.413187829110486` (63.6771% reduction), and perplexity improved from `767.9438354472138` to `11.169510943754625`.
 
-- strict versioned configuration and source-object metadata;
-- a default no-download storage preflight with about 8.39 GiB estimated headroom-inclusive demand;
-- explicit `--execute` materialization with image decoding, separate source-record and embedded-JPEG SHA256 provenance, caption/status/license filters, duplicate rejection, and row-level creator/page/license attribution;
-- hashed `samples.jsonl` and prepared-dataset manifest validation;
-- frozen real CLIP/VisionZip feature precompute at nominal budget 64 (`65 x 1024` including CLS);
-- 256-sample NPZ feature shards, expected to produce 32 shards, with sample-order and SHA256 verification plus safe reuse after interruption;
-- unit tests for configuration strictness, deterministic splits, manifest integrity, and feature-shard round trips.
+After 67 warm-up updates, steps 68-1,344 averaged `120.37183717184918 ms` per optimizer update, `132.92145717737577` effective samples/s, and `1413.1492154945145` target tokens/s. The current Python process peaked at `3058 MiB` GPU memory across 1,416 samples.
 
-This is an infrastructure milestone only. The dataset has not yet been downloaded, no feature shards have been generated, and no Phase 4B training or held-out caption metric exists. The primary future acceptance metric is held-out target-only NLL/perplexity; BLEU-1, BLEU-4, and ROUGE-L are secondary single-reference metrics. Full licensing, commands, schedule, storage estimate, acceptance gates, and non-claims are documented in [`docs/PHASE4B_DATASET_PLAN.md`](docs/PHASE4B_DATASET_PLAN.md).
+The deterministic 128-sample generated-caption subset recorded BLEU-1 `0.28304947283049475`, add-one-smoothed BLEU-4 `0.05727683512769526`, and ROUGE-L `0.26176086973563917`. These use one BLIP-2 synthetic reference per image, are not directly comparable with multi-reference COCO metrics, and do not establish high-quality captioning. Full details are in [`docs/PHASE4B_REAL_PAIRED_TRAINING.md`](docs/PHASE4B_REAL_PAIRED_TRAINING.md). The final versioned v2 evidence archive is the remaining publication step before the repository labels Phase 4B complete.
 
 ## 9. 项目结构
 
@@ -445,16 +440,14 @@ VisionZip-Jittor/
 - [x] Run the Phase 4A fresh and resumed paths on AutoDL and save `passed: true` reports;
 - [x] Pin the Phase 4B CommonCatalog CC-BY revision, five pilot shards, exact 8,192-sample target, attribution policy, deterministic split, and disk estimate;
 - [x] Implement Phase 4B preparation/preflight and hashed sharded feature infrastructure with unit tests;
-- [ ] Run Phase 4B preflight on AutoDL, materialize the licensed pilot subset, and precompute all 32 frozen feature shards;
-- [ ] Implement and run Phase 4B gradient-accumulated training plus held-out evaluation.
+- [x] Run Phase 4B preflight on AutoDL, materialize the licensed pilot subset, and precompute all 32 frozen feature shards;
+- [x] Implement and run Phase 4B gradient-accumulated training plus held-out evaluation and benchmark instrumentation.
 
 ## 11. Next steps
 
-1. Validate the Phase 4B preparation and feature scripts on AutoDL, then run the no-download preflight.
-2. In `tmux`, materialize the pinned 8,192-sample CommonCatalog CC-BY pilot and verify every image/license/attribution hash.
-3. In `tmux`, precompute 32 frozen CLIP/VisionZip feature shards at nominal budget 64 and verify the final manifest.
-4. Implement the Phase 4B trainer/evaluator with gradient accumulation, rolling/best/final checkpoints, exact resume, held-out NLL/perplexity, BLEU-1/BLEU-4, and ROUGE-L.
-5. Only after fresh and explicit-resume CUDA runs pass may the project claim Phase 4B completion; mixed precision, KV-cache generation, and a larger frozen LLM remain later work.
+1. Create and transfer the versioned Phase 4B final v2 evidence archive, retain the original archive, and verify matching SHA256 values on AutoDL and Windows.
+2. After the archive hash is recorded in the repository, mark Phase 4B complete.
+3. Plan the next phase separately. Candidate future work includes synchronized repeated performance runs, mixed precision, KV-cache generation, a larger frozen LLM, and evaluation against a compatible licensed multi-reference set. None is implied by the Phase 4B result.
 
 ## 12. 许可证与声明
 
