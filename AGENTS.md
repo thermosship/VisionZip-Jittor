@@ -2,9 +2,9 @@
 
 > **Purpose:** This is the authoritative cross-account handoff file for Codex agents working on this reproduction. A new agent may have no access to earlier chats. Read this file completely before modifying code, running expensive jobs, changing claims, or proposing the next phase.
 >
-> **Last authoritative update:** 2026-08-03 (Asia/Shanghai), after passwordless VS Code/SSH validation and before Phase 4A implementation.
+> **Last authoritative update:** 2026-08-03 (Asia/Shanghai), after Phase 4A implementation, Windows/AutoDL tests, and fresh plus explicit-resume CUDA validation.
 >
-> **Current phase boundary:** Phase 1, Phase 2, Phase 3A, and the minimum real-LLM Phase 3B are complete. Phase 4A real Projector training has **not started**.
+> **Current phase boundary:** Phases 1, 2, 3A, 3B, and Phase 4A are complete. Phase 4B licensed paired-dataset training has **not started**.
 
 ## 1. Mandatory instructions for every future Codex agent
 
@@ -91,38 +91,35 @@ The user's low local RAM does not limit remote model loading. Avoid opening larg
 
 ## 3. Current live state
 
-Verified on 2026-08-03 immediately before creating this file:
+Verified on 2026-08-03 after the Phase 4A fresh and explicit-resume runs:
 
 ```text
 Remote host: autodl-container-10894aa74d-da4e9cbe
 Repository: /root/autodl-tmp/VisionZip-Jittor
 Branch: main
-Upstream state: main is up to date with origin/main
-HEAD before this handoff file: c2ac559 docs: record phase-three real GPT-2 results
+Phase 4A implementation commit: 7a62be2 feat: add phase-four paired projector training
 GPU: NVIDIA GeForce RTX 4090, 24564 MiB
-GPU state: idle, 0 MiB used at verification time
 Driver: 580.105.08
 nvidia-smi maximum CUDA compatibility: 13.0
 Jittor nvcc toolkit: 11.8.89
-Remote RAM: approximately 1.0 TiB total, approximately 904 GiB available at verification time
-Remote data disk: /root/autodl-tmp, 200 GiB total, approximately 197 GiB available
+Remote RAM: approximately 1.0 TiB
+Phase 4A fresh run: passed=true, steps 0 -> 30
+Phase 4A explicit resume: passed=true, steps 10 -> 30
 ```
 
-Current untracked generated paths:
+The Phase 4A source/config/test implementation is committed as `7a62be2`. README, the Phase 4A result document, and this handoff update are the documentation change set associated with the completed validation. Generated remote paths include:
 
 ```text
 logs/benchmark_gpu_info.txt
 logs/phase3b/
 outputs/phase3b/
+logs/phase4a/
+logs/phase4a_resume_test/
+logs/phase4a_resume_console.log
+outputs/phase4a/
 ```
 
-These are not pending source changes. In particular:
-
-```text
-outputs/phase3b/gpt2/gpt2_float32_weights.npz  ~475 MiB
-```
-
-Do not commit these generated artifacts to ordinary Git history.
+These generated paths are execution evidence, not pending source. In particular, the GPT-2 weight export is about 475 MiB and the Phase 4A checkpoints are about 15 MiB each. Never add them to ordinary Git history. Use explicit path-by-path staging; never use `git add .` or `git add -A`.
 
 ## 4. Environment contract
 
@@ -490,6 +487,96 @@ Generation boundary: decoded strings prove real GPT-2 execution and tokenizer de
 
 Detailed document: `docs/PHASE3B_REAL_GPT2.md`.
 
+### 6.5 Phase 4A -- real paired Projector training infrastructure: COMPLETE
+
+Milestone implementation commit:
+
+```text
+7a62be2 feat: add phase-four paired projector training
+```
+
+Purpose:
+
+- turn the single-update Phase 3B path into repeated paired image-text training;
+- preserve frozen precomputed CLIP/VisionZip features and frozen native GPT-2;
+- train the `1024 -> 768 -> 768` Projector only;
+- add deterministic data handling, target-only causal labels, JSONL metrics, complete optimizer checkpoints, and real resume;
+- validate the infrastructure with a tiny deterministic overfit/smoke fixture before selecting a larger licensed dataset.
+
+Validated data path:
+
+```text
+precomputed Phase 2 real CLIP/VisionZip tokens at nominal budget 64
+-> native Jittor Projector 1024 -> 768 -> 768
+-> frozen native Jittor GPT-2 small
+-> teacher-forced target-only causal loss
+-> Projector-only Adam update
+-> JSONL metrics + complete Projector/Adam checkpoint
+```
+
+Checked-in Phase 4A inputs:
+
+```text
+configs/phase4a_tiny_overfit.json
+manifests/phase4a_tiny_pairs.json
+```
+
+The manifest contains the three deterministic project-generated sample images. The deterministic split uses `dense` and `scene` for training and `text` for validation. This is an infrastructure smoke/overfit fixture, not a quality dataset.
+
+Fresh AutoDL CUDA run:
+
+| Field | Result |
+|---|---:|
+| top-level status | `passed: true` |
+| start/final step | `0 / 30` |
+| initial full-train loss | `9.825726509094238` |
+| final full-train loss | `4.479739189147949` |
+| train-loss improvement | `5.345987319946289` |
+| initial validation loss | `7.5414838790893555` |
+| final validation loss | `7.752180099487305` |
+| Projector-only optimizer scope | `true` |
+| all updates finite/nonzero | `true` |
+| GPT-2 unchanged | `true` |
+
+Checkpoint next-step CUDA replay:
+
+```text
+loss_abs_error:          4.76837158203125e-07
+projector_max_abs_error: 3.725290298461914e-09
+tolerance:               1e-05
+bit_exact:               false
+numerically_reproduced:  true
+passed:                  true
+```
+
+The checkpoint loader restores the serialized Projector parameters and Adam first/second moments with exact key/shape/hash validation. The subsequent CUDA computation is numerically reproduced within `1e-5`, but is not claimed bitwise deterministic.
+
+Explicit resume validation loaded `projector_step_000010.npz`, continued from step 10 to step 30 in separate output/log directories, and also produced `passed: true`. Its final train loss was `4.253312587738037`; all updates were finite and GPT-2 remained unchanged.
+
+Test results:
+
+```text
+Windows: 41 tests, OK, skipped=13 (Jittor unavailable)
+AutoDL/Jittor: 41 tests, OK, skipped=8 (PyTorch unavailable)
+```
+
+Important hashes:
+
+```text
+final checkpoint:
+  6b3e200aa4d320b1251fced1b4a6d8fad6fad3b205ea94812a743b83c709b66b
+fresh summary:
+  eaf2eb9210c8ed768bfc0a4e4cbf3cf576430bedfd332f394ef417d783c7f81e
+fresh metrics:
+  e2907f82015e8d6d9784a9212ac69e43e68c493d39866bc9dcbfd7ce7031d76f
+evidence archive (12 entries, transferred to Windows):
+  01942f1fd7e82faf6eb5e8bcb9ffca9c2474b50718eea47e00ba446960926858
+```
+
+The retained validation generation was poor (`" the shows..."`). It proves execution only. Validation loss did not improve. Do not describe Phase 4A as caption-quality, generalization, or benchmark success.
+
+Detailed document: `docs/PHASE4A_PAIRED_TRAINING.md`.
+
 ## 7. Important source map
 
 ```text
@@ -507,6 +594,22 @@ visionzip_jittor/gpt2.py
 visionzip_jittor/gpt2_config.py
   Native Jittor GPT-2 blocks, tied LM head, artifact loading, loss/generation support.
 
+visionzip_jittor/phase4_config.py
+  Strict Phase 4A training config, serialization, budget and resume tolerance.
+
+visionzip_jittor/phase4_data.py
+  Paired manifest parser, deterministic split/batches, Phase 2 row mapping, target masks.
+
+visionzip_jittor/phase4_training.py
+  Multimodal training batches, parameter/gradient statistics, complete atomic checkpoints, generation helpers.
+
+scripts/run_phase4a_training.py
+  End-to-end Phase 4A verifier/trainer/resumer and summary writer.
+
+configs/phase4a_tiny_overfit.json
+manifests/phase4a_tiny_pairs.json
+  Reproducible tiny paired-training fixture.
+
 reference/pytorch_visionzip.py
 reference/clip_features.py
   PyTorch reference compression and real CLIP feature helpers.
@@ -523,15 +626,12 @@ scripts/export_gpt2_jittor_artifacts.py
 scripts/run_phase3b_gpt2.py
   Phase 3B artifact exporter and native real-GPT-2 runner.
 
-configs/visionzip_64.json
-configs/visionzip_128.json
-configs/visionzip_192.json
-configs/phase3_projector_smoke.json
-configs/phase3b_gpt2.json
-  Reproducible configurations.
+tests/test_phase4_config_data.py
+tests/test_phase4_jittor.py
+  Phase 4A schema/mask/determinism, checkpoint round-trip, and tiny Projector-only update tests.
 
 tests/
-  Config, PyTorch reference, Jittor core, Projector, GPT-2, CLIP helper, and visualization tests.
+  All earlier config, PyTorch reference, Jittor core, Projector, GPT-2, CLIP helper, and visualization tests.
 ```
 
 ## 8. Generated artifacts currently available on AutoDL
@@ -556,60 +656,86 @@ outputs/phase3b/gpt2/text_reference.npz
 outputs/phase3b/gpt2/tokenizer/
 ```
 
-Phase 3B primary reports:
+Phase 4A fresh-run evidence:
 
 ```text
-logs/phase3b/gpt2_smoke.json
-logs/phase3b/gpt2_smoke.log
-logs/phase3b/gpt2_smoke_64.json
-logs/phase3b/gpt2_smoke_64.log
-logs/phase3b/gpt2_unit_tests.log
-logs/phase3b/export_gpt2.log
-logs/phase3b/evidence/
+logs/phase4a/full_console.log
+logs/phase4a/phase4a_summary.json
+logs/phase4a/train_metrics.jsonl
+outputs/phase4a/tiny_overfit/checkpoints/projector_step_000010.npz
+outputs/phase4a/tiny_overfit/checkpoints/projector_step_000020.npz
+outputs/phase4a/tiny_overfit/checkpoints/projector_step_000030.npz
 ```
 
-The generated outputs are intentionally ignored by file-pattern rules, but their parent directories still appear as untracked because tokenizer text files and some evidence text files are not covered by the current `.gitignore`. Do not solve this by committing the artifacts. Review `.gitignore` deliberately in Phase 4A housekeeping.
+Phase 4A explicit-resume evidence:
+
+```text
+logs/phase4a_resume_console.log
+logs/phase4a_resume_test/phase4a_summary.json
+logs/phase4a_resume_test/train_metrics.jsonl
+outputs/phase4a/resume_test/
+```
+
+All generated models, NPZ references, checkpoints, tokenizer files, summaries, JSONL metrics, and console logs must stay out of ordinary Git commits. Evidence archives may be transferred to Windows and hashed, but should not be committed unless a future explicit repository policy says otherwise.
 
 ## 9. Canonical verification commands
 
-### Full unit discovery in Jittor environment
+### Full local checks on Windows
 
-```bash
-cd /root/autodl-tmp/VisionZip-Jittor
-source /root/miniconda3/etc/profile.d/conda.sh
-conda activate /root/autodl-tmp/envs/visionzip-jittor
-export OMP_NUM_THREADS=8
+```powershell
+cd C:\Users\69444\Desktop\cmm\VisionZip-Jittor
+python -m compileall visionzip_jittor scripts tests
 python -m unittest discover -s tests -v
+git diff --check
 ```
 
-Expected skips depend on which framework is installed in the active environment. Skipped PyTorch-only tests inside the Jittor environment are not automatically failures.
+Expected Phase 4A-aware result: 41 tests pass with 13 Jittor-dependent skips.
 
-### Verify Phase 3B final report without rerunning the model
+### Full unit discovery in the AutoDL Jittor environment
 
 ```bash
 cd /root/autodl-tmp/VisionZip-Jittor
+export USE_TORCH=0 USE_TF=0 USE_FLAX=0 OMP_NUM_THREADS=8
+/root/autodl-tmp/envs/visionzip-jittor/bin/python   -m unittest discover -s tests -v
+```
+
+Expected Phase 4A-aware result: 41 tests pass with 8 PyTorch-dependent skips.
+
+### Fresh Phase 4A run
+
+```bash
+cd /root/autodl-tmp/VisionZip-Jittor
+rm -rf outputs/phase4a/tiny_overfit logs/phase4a
+mkdir -p logs/phase4a
+export USE_TORCH=0 USE_TF=0 USE_FLAX=0 OMP_NUM_THREADS=8
+set -o pipefail
+/root/autodl-tmp/envs/visionzip-jittor/bin/python   scripts/run_phase4a_training.py   --device cuda   2>&1 | tee logs/phase4a/full_console.log
+```
+
+### Explicit resume from step 10
+
+```bash
+/root/autodl-tmp/envs/visionzip-jittor/bin/python   scripts/run_phase4a_training.py   --device cuda   --resume outputs/phase4a/tiny_overfit/checkpoints/projector_step_000010.npz   --output-dir outputs/phase4a/resume_test   --log-dir logs/phase4a_resume_test
+```
+
+### Verify Phase 4A reports without rerunning the model
+
+```bash
 python - <<'PY'
 import json
 from pathlib import Path
-
-path = Path("logs/phase3b/gpt2_smoke.json")
-data = json.loads(path.read_text())
-print("artifact_type:", data.get("artifact_type"))
-print("real_llm:", data.get("real_llm"))
-print("passed:", data.get("passed"))
-for result in data.get("results", []):
-    print(result.get("budget"), result.get("passed"))
+for path in [
+    Path('logs/phase4a/phase4a_summary.json'),
+    Path('logs/phase4a_resume_test/phase4a_summary.json'),
+]:
+    data = json.loads(path.read_text())
+    print(path)
+    print('passed:', data.get('passed'))
+    print('start_step:', data.get('start_step'))
+    print('final_step:', data.get('final_step'))
+    print('language_unchanged:', data.get('language_unchanged'))
+    print('checkpoint_replay:', data.get('checkpoint_replay', {}).get('passed'))
 PY
-```
-
-Expected:
-
-```text
-real_llm: True
-passed: True
-64 True
-128 True
-192 True
 ```
 
 ### Git safety check before a source commit
@@ -621,81 +747,69 @@ git diff --cached --check
 git diff --cached --stat
 ```
 
-Review every staged path. Large NPZ, tokenizer artifacts, logs, and generated outputs must not enter ordinary commits.
+Review every staged path. Never use `git add .` or `git add -A`. Large NPZ files, tokenizer artifacts, logs, checkpoints, and generated outputs must not enter ordinary commits.
 
 ## 10. Current limitations and non-claims
 
 The project currently proves:
 
-- native Jittor VisionZip behavior aligned with PyTorch synthetic inputs;
-- real CLIP feature alignment for 64/128/192;
+- native Jittor VisionZip behavior aligned with the PyTorch reference;
+- real CLIP feature alignment for nominal budgets 64/128/192;
 - exact discrete token/merge decisions after the CUDA numeric-path fix;
-- Projector-only gradients through a frozen stub and a real frozen GPT-2;
-- native Jittor GPT-2 text-logit alignment and real execution.
+- native Jittor GPT-2 text-logit alignment and real execution;
+- Projector-only gradients through a frozen real GPT-2;
+- deterministic paired-fixture parsing, splitting, batching, and target-only labels;
+- repeated Projector-only training with finite updates;
+- complete Projector/Adam checkpoint serialization and validated resume;
+- numerical next-step replay within the declared `1e-5` CUDA tolerance.
 
 It does **not** yet prove:
 
-- a trained vision-language Projector;
-- useful captioning or VQA quality;
+- useful image captioning or VQA quality;
+- generalization beyond the three generated fixture images;
 - benchmark-quality downstream metrics;
 - LLaVA-equivalent behavior;
-- production prefill speedup;
+- bitwise deterministic CUDA resume;
+- production prefill or training speedup;
 - stable backward latency;
 - KV-cache generation;
 - mixed-precision correctness;
 - a larger frozen LLM integration.
 
-## 11. Next exact actions — Phase 4A, NOT STARTED
+The fresh Phase 4A validation loss increased from `7.54148` to `7.75218`, and the generated validation text was poor. Retain both facts in future reports. They do not invalidate the infrastructure acceptance result, but they prohibit any visual-language quality claim.
+
+## 11. Next exact actions -- Phase 4B, NOT STARTED
 
 Phase name:
 
 ```text
-Phase 4A: real paired image-text Projector training infrastructure
+Phase 4B: licensed paired-dataset training and held-out caption evaluation
 ```
 
-Planned data path:
+Phase 4B should reuse the validated Phase 4A execution path rather than redesigning the core training loop. Before downloading or launching a large run, explicitly fix and document:
 
-```text
-paired image + caption
--> frozen CLIP vision features
--> native Jittor VisionZip
--> trainable Projector 1024 -> 768 -> 768
--> frozen native Jittor GPT-2
--> teacher-forced causal language loss
--> update Projector only
-```
+1. dataset name, version, source URL, license, and allowed research use;
+2. dataset size/subset, filtering rules, deterministic train/validation split, and storage path under `/root/autodl-tmp`;
+3. caption normalization, maximum length, prompt template, EOS behavior, and evaluation references;
+4. primary VisionZip budget, normally nominal 64 plus CLS unless an ablation is justified;
+5. whether frozen CLIP/VisionZip features are precomputed, their shard format, hashes, and disk estimate;
+6. batch size, gradient accumulation, learning rate/schedule, total steps/epochs, seed, and checkpoint retention;
+7. held-out metrics such as BLEU/CIDEr/SPICE only where appropriate and reproducibly implemented;
+8. warm-up and synchronized throughput/memory measurement protocol;
+9. failure-recovery and resume acceptance criteria;
+10. evidence archive contents and hash procedure.
 
-Immediate implementation order:
+Recommended immediate implementation order:
 
-1. Inspect and deliberately update `.gitignore` for Phase 4 datasets, checkpoints, tokenizer artifacts, and logs without hiding source/config files.
-2. Define a versioned Phase 4 training config and paired image-caption manifest schema.
-3. Implement a deterministic dataset loader and train/validation split with seed recording.
-4. Reuse or precompute frozen CLIP/VisionZip features to avoid unnecessary repeated vision encoding during early Projector training.
-5. Implement a native Jittor Projector training runner with:
-   - Projector-only optimizer scope;
-   - frozen GPT-2 and frozen visual references;
-   - masked causal loss;
-   - finite/nonzero gradient checks;
-   - periodic JSONL metrics;
-   - checkpoint save/resume;
-   - deterministic seed and config snapshot.
-6. Add a tiny overfit/smoke dataset first. Verify loss decreases and checkpoint resume reproduces the next step before starting a larger dataset.
-7. Add validation loss and deterministic generation output. Do not call generation quality successful until a proper dataset and metrics are used.
-8. Add tests for dataset parsing, packing/label masks, optimizer scope, checkpoint round-trip, and a tiny training step.
-9. Run Phase 4A on AutoDL inside `tmux`, archive evidence, hash the archive, update README/Phase 4 documentation, and update this file.
+1. Write `docs/PHASE4B_DATASET_PLAN.md` before downloading a dataset.
+2. Add a versioned dataset-preparation/precompute config and manifest schema extension without weakening Phase 4A validation.
+3. Add sharded feature writing/loading and dataset integrity hashes.
+4. Add gradient accumulation and checkpoint retention while preserving Projector-only optimizer scope.
+5. Add held-out generation/evaluation scripts and unit tests on a tiny fixture.
+6. Run a small licensed subset first, verify resume and metric determinism, then scale only if disk/time estimates remain acceptable.
+7. Archive and hash evidence, update README and this handoff file, and only then call Phase 4B complete.
 
-Decisions still open and requiring explicit documentation before a large run:
-
-- paired dataset and license;
-- dataset download/storage location;
-- whether CLIP features are precomputed or encoded online;
-- primary token budget for training and whether to train/evaluate all three budgets;
-- maximum caption length and prompt template;
-- batch size, gradient accumulation, number of epochs/steps;
-- validation metrics;
-- checkpoint retention policy.
-
-A new agent must not invent completed Phase 4 results. As of this update, no Phase 4 training script, dataset, checkpoint, or quality result exists.
+A new agent must not describe Phase 4B as started merely because Phase 4A passed. No licensed external paired dataset has been selected or downloaded yet.
 
 ## 12. Network and recovery notes
 
@@ -732,5 +846,6 @@ Use the environment settings in section 4.3. Do not repeatedly delete the workin
 | Date | Git/phase state | What changed | Next action |
 |---|---|---|---|
 | 2026-08-03 | `c2ac559`, Phase 3B complete | Passwordless SSH and VS Code Remote-SSH validated; created this authoritative cross-account handoff before Phase 4A. | Commit/push this file, then design and implement Phase 4A training infrastructure. |
+| 2026-08-03 | `7a62be2` plus the documentation commit containing this row | Implemented paired-manifest training, Projector-only multi-step optimization, complete Projector/Adam checkpoints and resume; Windows and AutoDL tests passed; fresh and explicit-resume CUDA runs both recorded `passed: true`. | Evidence archive created, transferred, and SHA256-verified; push the Phase 4A commits and fast-forward AutoDL, then plan Phase 4B. |
 
 When adding a new row, keep older rows. The newest row should state the exact commit or dirty-worktree state, the verified result, and the next blocking action.

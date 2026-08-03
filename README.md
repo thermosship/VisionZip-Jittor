@@ -2,7 +2,7 @@
 
 使用 **Jittor 原生张量算子**复现 VisionZip 的视觉 Token 压缩核心，并建立可重复的 PyTorch/Jittor 数值对齐流程。
 
-> Current status: Phases 1, 2, 3A, and the minimum Phase 3B real-LLM integration are complete. Native Jittor GPT-2 passed the full AutoDL CUDA smoke report for 64/128/192 with top-level `real_llm: true` and `passed: true` on 2026-08-03.
+> Current status: Phases 1, 2, 3A, 3B, and the Phase 4A paired-training infrastructure are complete. On 2026-08-03, the native Jittor Projector trained through a frozen real GPT-2 on deterministic paired image-caption inputs, reduced full-train loss from `9.82573` to `4.47974`, restored complete Projector/Adam checkpoints, and produced top-level `passed: true`.
 
 ## 1. 项目目标
 
@@ -15,7 +15,7 @@
 - 仅训练多模态 Projector 的高效微调；
 - 训练、测试、性能和可视化日志。
 
-当前仓库已完成 Phase 1、Phase 2、Phase 3A 和 Phase 3B 最小真实 LLM 接入验证，已经实现：
+Current completed scope includes Phases 1, 2, 3A, 3B, and the Phase 4A paired image-text Projector training infrastructure:
 
 - 原生 Jittor VisionZip 核心；
 - 独立 PyTorch 参考实现；
@@ -30,7 +30,9 @@
 - 真实 CLIP 特征在 64/128/192 三档下的逐项对齐与 9 张 Token 可视化；
 - 原生 Jittor `1024 -> 768 -> 768` Projector、真实多模态 embedding packing 与 Projector-only 优化；
 - 原生 Jittor GPT-2 small（124M）12 层因果 Transformer、权重加载、冻结校验和真实解码；
-- 64/128/192 三档真实 CLIP → VisionZip → Projector → GPT-2 路径的 CUDA 验收。
+- 64/128/192 三档真实 CLIP → VisionZip → Projector → GPT-2 路径的 CUDA 验收。;
+- Phase 4A versioned paired manifests, deterministic splits, and target-only causal masks;
+- repeated Projector-only training on precomputed real CLIP/VisionZip tokens, JSONL metrics, complete Projector/Adam checkpoints, and resume.
 
 ## 2. 上游版本与复现范围
 
@@ -43,7 +45,7 @@ Commit: 8f86b55c6f000eb033e6912538af2dd7dcb30502
 Snapshot date: 2026-08-01
 ```
 
-详细版本记录见 [`references/UPSTREAM.md`](references/UPSTREAM.md)，第一阶段数值结果见 [`docs/PHASE1_RESULTS.md`](docs/PHASE1_RESULTS.md)，第二阶段真实 CLIP 实测结果见 [`docs/PHASE2_REAL_CLIP.md`](docs/PHASE2_REAL_CLIP.md)，Phase 3A Projector smoke 见 [`docs/PHASE3_PROJECTOR_FROZEN_LLM.md`](docs/PHASE3_PROJECTOR_FROZEN_LLM.md)，Phase 3B 真实 GPT-2 结果见 [`docs/PHASE3B_REAL_GPT2.md`](docs/PHASE3B_REAL_GPT2.md)。
+详细版本记录见 [`references/UPSTREAM.md`](references/UPSTREAM.md)，第一阶段数值结果见 [`docs/PHASE1_RESULTS.md`](docs/PHASE1_RESULTS.md)，第二阶段真实 CLIP 实测结果见 [`docs/PHASE2_REAL_CLIP.md`](docs/PHASE2_REAL_CLIP.md)，Phase 3A Projector smoke 见 [`docs/PHASE3_PROJECTOR_FROZEN_LLM.md`](docs/PHASE3_PROJECTOR_FROZEN_LLM.md)，Phase 3B 真实 GPT-2 结果见 [`docs/PHASE3B_REAL_GPT2.md`](docs/PHASE3B_REAL_GPT2.md)。 Phase 4A paired-training results are in [`docs/PHASE4A_PAIRED_TRAINING.md`](docs/PHASE4A_PAIRED_TRAINING.md).
 
 本仓库没有复制官方 LLaVA 模型代码。`reference/pytorch_visionzip.py` 是为了框架数值对齐而编写的独立参考模块。
 
@@ -336,18 +338,45 @@ Formal AutoDL validation completed on **2026-08-03** using an NVIDIA GeForce RTX
 
 The Hugging Face/Jittor text-logit maximum absolute error was `2.13623e-04` at `atol=rtol=5e-4`. For every budget, compressed tokens were allclose, assignments were exact, the optimizer scope was Projector-only, all four Projector tensors received finite nonzero gradients, Projector parameters changed, and all 124,439,808 GPT-2 parameters remained stop-grad and SHA256-identical before/after the update. Five native Jittor GPT-2 unit tests also passed.
 
-The timings are smoke-run observations rather than a synchronized production benchmark. Generated strings prove real GPT-2 execution and tokenizer decoding only; the randomly initialized Projector received one update and has not been trained for visual-language quality. Full results and limits are documented in [`docs/PHASE3B_REAL_GPT2.md`](docs/PHASE3B_REAL_GPT2.md).
+The timings are smoke-run observations rather than a synchronized production benchmark. Generated strings prove real GPT-2 execution and tokenizer decoding only; the randomly initialized Projector received one update and has not been trained for visual-language quality. Full results and limits are documented in [`docs/PHASE3B_REAL_GPT2.md`](docs/PHASE3B_REAL_GPT2.md) Phase 4A paired-training results are in [`docs/PHASE4A_PAIRED_TRAINING.md`](docs/PHASE4A_PAIRED_TRAINING.md).
+
+### 8.11 Phase 4A real paired Projector training
+
+Implementation milestone: `7a62be2 feat: add phase-four paired projector training`.
+
+Phase 4A turns the one-step Phase 3B path into a repeatable paired image-text training loop while keeping CLIP/VisionZip features and all 124,439,808 GPT-2 parameters frozen. The checked-in fixture joins the three deterministic sample images to captions, uses `dense` and `scene` for training, reserves `text` for validation, and trains only the native Jittor `1024 -> 768 -> 768` Projector at nominal budget 64 (`65` visual tokens including CLS).
+
+The runner provides a versioned manifest, deterministic split and mini-batch order, caption truncation plus EOS, target-only teacher-forced labels, JSONL metrics, atomic checkpoints containing all Projector tensors and Adam first/second moments, strict hash/shape validation, real `--resume`, and internal next-step replay verification.
+
+The formal RTX 4090 fresh run on **2026-08-03** completed 30 steps with top-level `passed: true`:
+
+| Field | Result |
+|---|---:|
+| Initial full-train loss | `9.825726509094238` |
+| Final full-train loss | `4.479739189147949` |
+| Train-loss improvement | `5.345987319946289` |
+| Initial validation loss | `7.5414838790893555` |
+| Final validation loss | `7.752180099487305` |
+| Projector-only optimizer scope | `true` |
+| GPT-2 frozen and unchanged | `true` |
+| All updates finite/nonzero | `true` |
+| Checkpoint next step numerically reproduced within `1e-5` | `true` |
+
+An explicit second invocation resumed from step 10 and continued to step 30 with `passed: true`. Complete checkpoint state restores hash-exactly, but the subsequent CUDA step is not claimed bitwise deterministic: observed replay errors were `4.76837e-07` for loss and `3.72529e-09` for Projector parameters, both within the declared `1e-5` tolerance.
+
+This three-image run is an infrastructure smoke/overfit test. Its validation loss did not improve and its generated text was poor; neither is presented as captioning quality or generalization evidence. Full commands, schemas, hashes, acceptance criteria, and non-claims are in [`docs/PHASE4A_PAIRED_TRAINING.md`](docs/PHASE4A_PAIRED_TRAINING.md). Evidence archive: `VisionZip-Jittor-phase4a-evidence-20260803.tar.gz`, SHA256 `01942F1FD7E82FAF6EB5E8BCB9FFCA9C2474B50718EEA47E00BA446960926858` (12 entries).
 
 ## 9. 项目结构
 
 ```text
 VisionZip-Jittor/
 ├── assets/sample_images/       # 可重复样例图生成位置
-├── configs/                    # 64/128/192 Token 配置
+├── configs/                    # VisionZip, Projector, GPT-2, and Phase 4A configs
+├── manifests/                  # versioned paired image-text manifests
 ├── docs/                       # 算法和实验结果说明
 ├── environment/                # AutoDL 激活和环境证据脚本
-├── logs/                       # 精简实验日志
-├── outputs/                    # 中间张量，默认不提交
+├── logs/                       # generated run logs, not committed
+├── outputs/                    # generated weights/checkpoints/tensors, not committed
 ├── reference/                  # PyTorch 参考实现
 ├── references/                 # 上游版本记录
 ├── requirements/               # 两个环境的依赖说明
@@ -360,7 +389,10 @@ VisionZip-Jittor/
     |-- projector.py            # native Jittor multimodal Projector
     |-- multimodal.py           # frozen language stub and packing
     |-- gpt2_config.py          # Phase 3B GPT-2/runtime configuration
-    `-- gpt2.py                 # native Jittor real GPT-2
+    |-- gpt2.py                 # native Jittor real GPT-2
+    |-- phase4_config.py        # Phase 4A paired-training configuration
+    |-- phase4_data.py          # manifest, split, feature and mask helpers
+    `-- phase4_training.py      # batches, metrics and complete checkpoints
 ```
 
 ## 10. 阶段状态
@@ -384,14 +416,17 @@ VisionZip-Jittor/
 - [x] Run Phase 3A on AutoDL RTX 4090 and save a `passed: true` report;
 - [x] Implement native Jittor GPT-2 blocks, tied LM head, weight loading, and tokenizer artifacts;
 - [x] Implement Phase 3B Projector-only loss/backward, real generation, prefill timing, and memory sampling;
-- [x] Run the Phase 3B real GPT-2 path on AutoDL for 64/128/192 and save a `real_llm: true`, `passed: true` report.
+- [x] Run the Phase 3B real GPT-2 path on AutoDL for 64/128/192 and save a `real_llm: true`, `passed: true` report;
+- [x] Add a versioned Phase 4A paired manifest, deterministic split, target masks, and precomputed-feature loader;
+- [x] Add repeated Projector-only training, JSONL metrics, complete Projector/Adam checkpoints, and resume;
+- [x] Run the Phase 4A fresh and resumed paths on AutoDL and save `passed: true` reports.
 
 ## 11. Next steps
 
-1. Train the `1024 -> 768 -> 768` Projector on paired vision-language data instead of evaluating a one-step random initialization.
-2. Add downstream captioning/VQA evaluation with reproducible datasets and quality metrics.
-3. Add KV cache, synchronized latency measurement, longer warm-up, mixed precision, and production-oriented memory profiling.
-4. After the native GPT-2 path and training pipeline are stable, evaluate a larger frozen language model without weakening the Projector-only optimization boundary.
+1. Select and document a licensed paired dataset for Phase 4B, then precompute frozen CLIP/VisionZip features at a fixed primary token budget.
+2. Train for a meaningful schedule and add held-out captioning metrics; do not treat the three-image Phase 4A fixture as downstream evidence.
+3. Add gradient accumulation, checkpoint retention, synchronized throughput/memory measurement, mixed precision, and KV-cache generation.
+4. After the paired-data training pipeline is stable at meaningful scale, evaluate a larger frozen language model without weakening the Projector-only optimization boundary.
 
 ## 12. 许可证与声明
 
