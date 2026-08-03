@@ -4,6 +4,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 ACTIVATE_SCRIPT = ROOT / "environment" / "activate_jittor.sh"
+README = ROOT / "README.md"
 
 
 class EnvironmentScriptTests(unittest.TestCase):
@@ -19,6 +20,14 @@ class EnvironmentScriptTests(unittest.TestCase):
         self.assertIn("VISIONZIP_CACHE_ROOT", text)
         self.assertIn("/root/autodl-tmp/envs/visionzip-jittor", text)
         self.assertIn("/root/autodl-tmp/cache", text)
+
+    def test_readme_generates_untracked_sample_images_before_real_clip(self):
+        text = README.read_text(encoding="utf-8")
+        generator = "scripts/create_sample_images.py"
+        pipeline = "scripts/run_real_clip_pipeline.py"
+        self.assertIn(generator, text)
+        self.assertIn(pipeline, text)
+        self.assertLess(text.index(generator), text.index(pipeline))
 
 
 if __name__ == "__main__":
