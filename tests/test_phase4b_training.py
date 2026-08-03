@@ -1,6 +1,8 @@
 import hashlib
+import os
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 import numpy as np
@@ -15,6 +17,7 @@ from visionzip_jittor.phase4b_features import (
     write_feature_shard,
 )
 from visionzip_jittor.phase4b_training import (
+    GpuMemorySampler,
     batch_indices_for_optimizer_step,
     caption_metrics,
     checkpoints_to_remove,
@@ -23,6 +26,8 @@ from visionzip_jittor.phase4b_training import (
     learning_rate_for_optimizer_step,
     load_phase4b_training_features,
     rouge_l_f1,
+    summarize_training_benchmark,
+    training_benchmark_is_acceptable,
 )
 
 
@@ -62,6 +67,98 @@ class Phase4BTrainingUtilityTests(unittest.TestCase):
             learning_rate_for_optimizer_step(6, 1e-4, 2, 6),
             learning_rate_for_optimizer_step(5, 1e-4, 2, 6),
         )
+
+    def test_post_warmup_training_benchmark_uses_metric_counts(self):
+        metrics = [
+            {
+                "artifact_type": "phase4b_train_metric_v1",
+                "optimizer_step": 1,
+                "elapsed_ms": 100.0,
+                "sample_ids": ["warmup"] * 4,
+                "microbatch_target_token_counts": [10],
+            },
+            {
+                "artifact_type": "phase4b_train_metric_v1",
+                "optimizer_step": 2,
+                "elapsed_ms": 200.0,
+                "sample_ids": ["measured"] * 16,
+                "microbatch_target_token_counts": [10, 20],
+            },
+            {
+                "artifact_type": "phase4b_train_metric_v1",
+                "optimizer_step": 3,
+                "elapsed_ms": 300.0,
+                "sample_ids": ["measured"] * 16,
+                "microbatch_target_token_counts": [12, 18],
+            },
+        ]
+        summary = summarize_training_benchmark(
+            metrics,
+            1,
+            peak_process_gpu_memory_mib=2791,
+            gpu_memory_sample_count=17,
+            gpu_memory_sampling_interval_seconds=0.1,
+        )
+        self.assertEqual(summary["measured_optimizer_step_start"], 2)
+        self.assertEqual(summary["measured_optimizer_step_end"], 3)
+        self.assertEqual(summary["measured_optimizer_steps"], 2)
+        self.assertEqual(summary["effective_sample_count"], 32)
+        self.assertEqual(summary["target_token_count"], 60)
+        self.assertAlmostEqual(summary["mean_optimizer_step_ms"], 250.0)
+        self.assertAlmostEqual(summary["effective_samples_per_second"], 64.0)
+        self.assertAlmostEqual(summary["target_tokens_per_second"], 120.0)
+        self.assertEqual(summary["peak_process_gpu_memory_mib"], 2791)
+        self.assertEqual(summary["gpu_memory_sample_count"], 17)
+        self.assertTrue(
+            training_benchmark_is_acceptable(
+                summary,
+                require_gpu_memory=True,
+            )
+        )
+
+    def test_training_benchmark_allows_an_incomplete_pre_warmup_smoke(self):
+        summary = summarize_training_benchmark(
+            [
+                {
+                    "artifact_type": "phase4b_train_metric_v1",
+                    "optimizer_step": 2,
+                    "elapsed_ms": 10.0,
+                    "sample_ids": ["sample"] * 16,
+                    "microbatch_target_token_counts": [8, 8, 8, 8],
+                }
+            ],
+            67,
+            peak_process_gpu_memory_mib=None,
+            gpu_memory_sample_count=0,
+            gpu_memory_sampling_interval_seconds=0.1,
+        )
+        self.assertEqual(summary["measured_optimizer_steps"], 0)
+        self.assertIsNone(summary["mean_optimizer_step_ms"])
+        self.assertIsNone(summary["effective_samples_per_second"])
+        self.assertIsNone(summary["target_tokens_per_second"])
+        self.assertFalse(
+            training_benchmark_is_acceptable(
+                summary,
+                require_gpu_memory=True,
+            )
+        )
+
+    def test_gpu_memory_sampler_aggregates_current_process_rows(self):
+        result = mock.Mock(
+            stdout=(
+                f"{os.getpid()}, 1024\n"
+                "999999, 4096\n"
+                f"{os.getpid()}, 512\n"
+            )
+        )
+        sampler = GpuMemorySampler(enabled=True, interval=0.1)
+        with mock.patch(
+            "visionzip_jittor.phase4b_training.subprocess.run",
+            return_value=result,
+        ):
+            sampler.sample_once()
+        self.assertEqual(sampler.peak_mib, 1536)
+        self.assertEqual(sampler.sample_count, 1)
 
     def test_subset_and_checkpoint_retention_are_deterministic(self):
         self.assertEqual(

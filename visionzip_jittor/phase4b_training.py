@@ -10,9 +10,12 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass
 import math
+import os
 from pathlib import Path
 import re
-from typing import Dict, Iterable, List, Sequence, Tuple, Union
+import subprocess
+import threading
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 
@@ -30,6 +33,104 @@ from .phase4b_features import (
 
 _WORD_RE = re.compile(r"[\w]+(?:['’-][\w]+)*", flags=re.UNICODE)
 _CHECKPOINT_RE = re.compile(r"projector_step_(\d{6,})\.npz$")
+
+
+class GpuMemorySampler:
+    """Sample this process's aggregate GPU memory through ``nvidia-smi``.
+
+    Sampling is opt-in and starts only when :meth:`start` is called. Phase 4B
+    uses that boundary immediately before the first optimizer step after
+    warm-up, so setup and warm-up allocations cannot become the reported peak.
+    """
+
+    def __init__(self, enabled: bool, interval: float = 0.1):
+        if interval <= 0.0:
+            raise ValueError("GPU memory sampling interval must be positive")
+        self.enabled = bool(enabled)
+        self.interval = float(interval)
+        self._peak_mib: Optional[int] = None
+        self._sample_count = 0
+        self._stop = threading.Event()
+        self._thread: Optional[threading.Thread] = None
+        self._lock = threading.Lock()
+        self._started = False
+
+    @property
+    def peak_mib(self) -> Optional[int]:
+        with self._lock:
+            return self._peak_mib
+
+    @property
+    def sample_count(self) -> int:
+        with self._lock:
+            return self._sample_count
+
+    def sample_once(self) -> None:
+        if not self.enabled:
+            return
+        try:
+            result = subprocess.run(
+                [
+                    "nvidia-smi",
+                    "--query-compute-apps=pid,used_memory",
+                    "--format=csv,noheader,nounits",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return
+        own_pid = os.getpid()
+        own_memory_mib = 0
+        found = False
+        for line in result.stdout.splitlines():
+            fields = [item.strip() for item in line.split(",")]
+            if len(fields) != 2:
+                continue
+            try:
+                pid, memory_mib = int(fields[0]), int(fields[1])
+            except ValueError:
+                continue
+            if pid == own_pid:
+                own_memory_mib += memory_mib
+                found = True
+        if found:
+            with self._lock:
+                self._peak_mib = max(self._peak_mib or 0, own_memory_mib)
+                self._sample_count += 1
+
+    def _run(self) -> None:
+        while not self._stop.is_set():
+            self.sample_once()
+            self._stop.wait(self.interval)
+
+    def start(self) -> None:
+        if not self.enabled or self._started:
+            return
+        self._stop.clear()
+        self._started = True
+        self.sample_once()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def stop(self) -> None:
+        if not self.enabled or not self._started:
+            return
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=2)
+        self.sample_once()
+        self._thread = None
+        self._started = False
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.stop()
 
 
 @dataclass(frozen=True)
@@ -204,6 +305,127 @@ def learning_rate_for_optimizer_step(
     decay_index = optimizer_step - warmup_steps - 1
     progress = decay_index / decay_steps
     return base_learning_rate * 0.5 * (1.0 + math.cos(math.pi * progress))
+
+
+def summarize_training_benchmark(
+    train_metrics: Sequence[Dict[str, object]],
+    warmup_optimizer_steps: int,
+    *,
+    peak_process_gpu_memory_mib: Optional[int],
+    gpu_memory_sample_count: int,
+    gpu_memory_sampling_interval_seconds: float,
+) -> Dict[str, object]:
+    """Aggregate optimizer-step throughput strictly after warm-up.
+
+    ``elapsed_ms`` covers the forward/backward/update body of each optimizer
+    step. Evaluation, checkpoint I/O, generation, model loading, and startup are
+    intentionally excluded. The GPU-memory sampler remains active across the
+    post-warm-up training loop, including periodic evaluation/checkpoint work,
+    so the reported process peak is conservative for that invocation.
+    """
+
+    if warmup_optimizer_steps < 0:
+        raise ValueError("warmup_optimizer_steps must be non-negative")
+    if gpu_memory_sample_count < 0:
+        raise ValueError("gpu_memory_sample_count must be non-negative")
+    if gpu_memory_sampling_interval_seconds <= 0.0:
+        raise ValueError("GPU memory sampling interval must be positive")
+
+    selected: List[Tuple[int, float, int, int]] = []
+    seen_steps = set()
+    for metric in train_metrics:
+        if metric.get("artifact_type") != "phase4b_train_metric_v1":
+            raise ValueError("training benchmark received a non-training metric")
+        optimizer_step = int(metric["optimizer_step"])
+        if optimizer_step in seen_steps:
+            raise ValueError("training benchmark received a duplicate optimizer step")
+        seen_steps.add(optimizer_step)
+        if optimizer_step <= warmup_optimizer_steps:
+            continue
+        elapsed_ms = float(metric["elapsed_ms"])
+        if not math.isfinite(elapsed_ms) or elapsed_ms <= 0.0:
+            raise ValueError("training benchmark elapsed_ms must be finite and positive")
+        sample_count = len(metric["sample_ids"])
+        target_token_count = sum(
+            int(item) for item in metric["microbatch_target_token_counts"]
+        )
+        if sample_count <= 0 or target_token_count <= 0:
+            raise ValueError("training benchmark counts must be positive")
+        selected.append(
+            (optimizer_step, elapsed_ms, sample_count, target_token_count)
+        )
+
+    selected.sort(key=lambda item: item[0])
+    steps = [item[0] for item in selected]
+    total_elapsed_ms = sum(item[1] for item in selected)
+    effective_sample_count = sum(item[2] for item in selected)
+    target_token_count = sum(item[3] for item in selected)
+    elapsed_seconds = total_elapsed_ms / 1000.0
+    measured_steps = len(selected)
+    return {
+        "artifact_type": "phase4b_training_benchmark_v1",
+        "scope": (
+            "optimizer-step compute after warm-up; excludes evaluation, "
+            "checkpoint I/O, generation, model loading, and startup"
+        ),
+        "gpu_memory_scope": (
+            "current-process nvidia-smi peak across the post-warm-up "
+            "training loop, including periodic evaluation/checkpoint work"
+        ),
+        "warmup_optimizer_steps": warmup_optimizer_steps,
+        "measured_optimizer_step_start": steps[0] if steps else None,
+        "measured_optimizer_step_end": steps[-1] if steps else None,
+        "measured_optimizer_steps": measured_steps,
+        "total_optimizer_step_ms": total_elapsed_ms if measured_steps else None,
+        "mean_optimizer_step_ms": (
+            total_elapsed_ms / measured_steps if measured_steps else None
+        ),
+        "effective_sample_count": effective_sample_count,
+        "effective_samples_per_second": (
+            effective_sample_count / elapsed_seconds if measured_steps else None
+        ),
+        "target_token_count": target_token_count,
+        "target_tokens_per_second": (
+            target_token_count / elapsed_seconds if measured_steps else None
+        ),
+        "peak_process_gpu_memory_mib": peak_process_gpu_memory_mib,
+        "gpu_memory_sample_count": gpu_memory_sample_count,
+        "gpu_memory_sampling_interval_seconds": (
+            gpu_memory_sampling_interval_seconds
+        ),
+    }
+
+
+def training_benchmark_is_acceptable(
+    summary: Dict[str, object],
+    *,
+    require_gpu_memory: bool,
+) -> bool:
+    """Return whether a completed-run benchmark closes the evidence gate."""
+
+    try:
+        measured_steps = int(summary["measured_optimizer_steps"])
+        samples_per_second = float(summary["effective_samples_per_second"])
+        tokens_per_second = float(summary["target_tokens_per_second"])
+        memory_samples = int(summary["gpu_memory_sample_count"])
+    except (KeyError, TypeError, ValueError):
+        return False
+    if not (
+        measured_steps > 0
+        and math.isfinite(samples_per_second)
+        and samples_per_second > 0.0
+        and math.isfinite(tokens_per_second)
+        and tokens_per_second > 0.0
+    ):
+        return False
+    if not require_gpu_memory:
+        return True
+    peak = summary.get("peak_process_gpu_memory_mib")
+    try:
+        peak_mib = int(peak)
+    except (TypeError, ValueError):
+        return False
+    return peak_mib > 0 and memory_samples > 0
 
 
 def deterministic_subset_indices(

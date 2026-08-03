@@ -46,6 +46,7 @@ from visionzip_jittor.phase4_training import (
 from visionzip_jittor.phase4b_config import load_phase4b_config
 from visionzip_jittor.phase4b_data import canonical_json_sha256, file_sha256
 from visionzip_jittor.phase4b_training import (
+    GpuMemorySampler,
     Phase4BLoadedFeatures,
     batch_indices_for_optimizer_step,
     caption_metrics,
@@ -53,6 +54,8 @@ from visionzip_jittor.phase4b_training import (
     deterministic_subset_indices,
     learning_rate_for_optimizer_step,
     load_phase4b_training_features,
+    summarize_training_benchmark,
+    training_benchmark_is_acceptable,
 )
 from visionzip_jittor.projector import MultimodalProjector, parameter_count
 from visionzip_jittor.projector_config import ProjectorConfig
@@ -629,40 +632,69 @@ def main():
 
     all_updates_finite = True
     evaluation_history: List[Dict[str, Any]] = [initial_validation]
+    invocation_train_metrics: List[Dict[str, Any]] = []
+    memory_sampler = GpuMemorySampler(
+        enabled=args.device == "cuda",
+        interval=0.1,
+    )
+    memory_sampling_started = False
     final_step = start_step
-    for completed_steps in range(start_step, requested_stop):
-        metric = train_optimizer_step(
-            completed_steps,
-            projector,
-            model,
-            tokenizer,
-            optimizer,
-            loaded,
-            config,
-        )
-        final_step = metric["optimizer_step"]
-        all_updates_finite = all_updates_finite and metric["finite_update"]
-        append_jsonl(metrics_path, metric)
-        print(json.dumps(metric, ensure_ascii=False))
-
-        if final_step % settings.evaluation_every == 0:
-            evaluation = evaluate_target_nll(
+    try:
+        for completed_steps in range(start_step, requested_stop):
+            # A one-based optimizer step is post-warm-up only when it is
+            # strictly greater than warmup_steps. Start sampling immediately
+            # before that first update and keep setup/warm-up peaks excluded.
+            if (
+                not memory_sampling_started
+                and completed_steps >= settings.warmup_steps
+            ):
+                memory_sampler.start()
+                memory_sampling_started = True
+            metric = train_optimizer_step(
+                completed_steps,
                 projector,
                 model,
                 tokenizer,
+                optimizer,
                 loaded,
-                loaded.validation_indices,
                 config,
             )
-            evaluation["optimizer_step"] = final_step
-            append_jsonl(metrics_path, evaluation)
-            evaluation_history.append(evaluation)
-            print(json.dumps(evaluation, ensure_ascii=False))
-            if evaluation["held_out_target_nll"] < best_nll:
-                best_nll = evaluation["held_out_target_nll"]
-                best_step = final_step
+            invocation_train_metrics.append(metric)
+            final_step = metric["optimizer_step"]
+            all_updates_finite = all_updates_finite and metric["finite_update"]
+            append_jsonl(metrics_path, metric)
+            print(json.dumps(metric, ensure_ascii=False))
+
+            if final_step % settings.evaluation_every == 0:
+                evaluation = evaluate_target_nll(
+                    projector,
+                    model,
+                    tokenizer,
+                    loaded,
+                    loaded.validation_indices,
+                    config,
+                )
+                evaluation["optimizer_step"] = final_step
+                append_jsonl(metrics_path, evaluation)
+                evaluation_history.append(evaluation)
+                print(json.dumps(evaluation, ensure_ascii=False))
+                if evaluation["held_out_target_nll"] < best_nll:
+                    best_nll = evaluation["held_out_target_nll"]
+                    best_step = final_step
+                    save_training_checkpoint(
+                        best_checkpoint,
+                        final_step,
+                        projector,
+                        optimizer,
+                        config,
+                        loaded,
+                        args.feature_manifest,
+                    )
+
+            if final_step % settings.checkpoint_every == 0:
+                checkpoint = checkpoint_dir / f"projector_step_{final_step:06d}.npz"
                 save_training_checkpoint(
-                    best_checkpoint,
+                    checkpoint,
                     final_step,
                     projector,
                     optimizer,
@@ -670,24 +702,14 @@ def main():
                     loaded,
                     args.feature_manifest,
                 )
-
-        if final_step % settings.checkpoint_every == 0:
-            checkpoint = checkpoint_dir / f"projector_step_{final_step:06d}.npz"
-            save_training_checkpoint(
-                checkpoint,
-                final_step,
-                projector,
-                optimizer,
-                config,
-                loaded,
-                args.feature_manifest,
-            )
-            for stale in checkpoints_to_remove(
-                checkpoint_dir.glob("projector_step_*.npz"),
-                keep_last=settings.keep_last_checkpoints,
-            ):
-                stale.unlink()
-        jt.gc()
+                for stale in checkpoints_to_remove(
+                    checkpoint_dir.glob("projector_step_*.npz"),
+                    keep_last=settings.keep_last_checkpoints,
+                ):
+                    stale.unlink()
+            jt.gc()
+    finally:
+        memory_sampler.stop()
 
     final_checkpoint = checkpoint_dir / f"projector_step_{final_step:06d}.npz"
     save_training_checkpoint(
@@ -733,6 +755,17 @@ def main():
         final_validation = evaluation_history[-1]
 
     completed_training = final_step == settings.max_optimizer_steps
+    training_benchmark = summarize_training_benchmark(
+        invocation_train_metrics,
+        settings.warmup_steps,
+        peak_process_gpu_memory_mib=memory_sampler.peak_mib,
+        gpu_memory_sample_count=memory_sampler.sample_count,
+        gpu_memory_sampling_interval_seconds=memory_sampler.interval,
+    )
+    training_benchmark_accepted = training_benchmark_is_acceptable(
+        training_benchmark,
+        require_gpu_memory=args.device == "cuda",
+    )
     generation = (
         generate_held_out_captions(
             projector,
@@ -782,6 +815,7 @@ def main():
         and projector_delta > 0.0
         and int(optimizer.n_step) == final_step
         and math.isfinite(final_validation["held_out_target_nll"])
+        and (not completed_training or training_benchmark_accepted)
         and (
             generation is None
             or all(item["token_ids"] for item in generation["samples"])
@@ -822,6 +856,8 @@ def main():
         "optimizer_n_step": int(optimizer.n_step),
         "intentional_stop_after_optimizer_step": args.stop_after_optimizer_step,
         "all_updates_finite": all_updates_finite,
+        "training_benchmark_accepted": training_benchmark_accepted,
+        "training_benchmark": training_benchmark,
         "initial_validation": initial_validation,
         "evaluation_history": evaluation_history,
         "final_validation": final_validation,
