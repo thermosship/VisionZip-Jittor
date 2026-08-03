@@ -41,6 +41,10 @@ from visionzip_jittor.phase4_training import (
     load_phase4_checkpoint,
     parameter_sha256,
 )
+from visionzip_jittor.phase5a_metrics import (
+    compare_generation_traces,
+    evaluate_trace_acceptance,
+)
 from visionzip_jittor.phase4b_config import load_phase4b_config
 from visionzip_jittor.phase4b_data import canonical_json_sha256
 from visionzip_jittor.phase4b_features import load_feature_manifest
@@ -148,9 +152,15 @@ def load_benchmark_config(path: Path) -> Dict[str, Any]:
         "max_new_tokens",
         "warmup_runs",
         "measured_runs",
-        "atol",
-        "rtol",
+        "raw_logit_diagnostic_atol",
+        "raw_logit_diagnostic_rtol",
+        "centered_logit_diagnostic_atol",
+        "centered_logit_diagnostic_rtol",
+        "probability_diagnostic_atol",
+        "probability_diagnostic_rtol",
+        "max_total_variation_distance",
         "require_exact_token_ids",
+        "require_total_variation_bound",
         "require_language_unchanged",
         "require_projector_unchanged",
         "require_speedup",
@@ -162,7 +172,7 @@ def load_benchmark_config(path: Path) -> Dict[str, Any]:
         raise ValueError(
             f"Phase 5A config keys mismatch: missing={missing}, unknown={unknown}"
         )
-    if payload["artifact_type"] != "phase5a_kv_cache_benchmark_config_v1":
+    if payload["artifact_type"] != "phase5a_kv_cache_benchmark_config_v3":
         raise ValueError("unsupported Phase 5A config artifact_type")
     budgets = [int(item) for item in payload["budgets"]]
     sample_indices = [int(item) for item in payload["sample_indices"]]
@@ -179,12 +189,27 @@ def load_benchmark_config(path: Path) -> Dict[str, Any]:
             raise ValueError(f"{name} must be positive")
     if int(payload["warmup_runs"]) < 0:
         raise ValueError("warmup_runs must be non-negative")
-    for name in ("atol", "rtol"):
+    tolerance_names = (
+        "raw_logit_diagnostic_atol",
+        "raw_logit_diagnostic_rtol",
+        "centered_logit_diagnostic_atol",
+        "centered_logit_diagnostic_rtol",
+        "probability_diagnostic_atol",
+        "probability_diagnostic_rtol",
+        "max_total_variation_distance",
+    )
+    for name in tolerance_names:
         value = float(payload[name])
         if not math.isfinite(value) or value < 0.0:
             raise ValueError(f"{name} must be finite and non-negative")
+        payload[name] = value
+    if payload["max_total_variation_distance"] > 1.0:
+        raise ValueError(
+            "max_total_variation_distance must not exceed 1"
+        )
     for name in (
         "require_exact_token_ids",
+        "require_total_variation_bound",
         "require_language_unchanged",
         "require_projector_unchanged",
         "require_speedup",
@@ -346,46 +371,25 @@ def compare_traces(
     uncached_logits: Sequence[np.ndarray],
     cached_ids: Sequence[int],
     cached_logits: Sequence[np.ndarray],
-    atol: float,
-    rtol: float,
+    config: Dict[str, Any],
 ) -> Dict[str, Any]:
-    if len(uncached_logits) != len(cached_logits):
-        raise ValueError("cached and uncached logit trace lengths differ")
-    maximum = 0.0
-    absolute_sum = 0.0
-    element_count = 0
-    allclose = True
-    step_results = []
-    for step, (left, right) in enumerate(zip(uncached_logits, cached_logits)):
-        difference = np.abs(
-            left.astype(np.float64) - right.astype(np.float64)
-        )
-        step_maximum = float(np.max(difference))
-        step_mean = float(np.mean(difference))
-        step_allclose = bool(np.allclose(left, right, atol=atol, rtol=rtol))
-        maximum = max(maximum, step_maximum)
-        absolute_sum += float(np.sum(difference))
-        element_count += int(difference.size)
-        allclose = allclose and step_allclose
-        step_results.append(
-            {
-                "step": step,
-                "max_abs_error": step_maximum,
-                "mean_abs_error": step_mean,
-                "allclose": step_allclose,
-                "uncached_token_id": int(uncached_ids[step]),
-                "cached_token_id": int(cached_ids[step]),
-            }
-        )
-    return {
-        "token_ids_exact": list(uncached_ids) == list(cached_ids),
-        "uncached_token_ids": [int(item) for item in uncached_ids],
-        "cached_token_ids": [int(item) for item in cached_ids],
-        "max_abs_error": maximum,
-        "mean_abs_error": absolute_sum / element_count if element_count else 0.0,
-        "allclose": allclose,
-        "steps": step_results,
-    }
+    """Build the versioned diagnostic and acceptance trace report."""
+
+    return compare_generation_traces(
+        uncached_ids,
+        uncached_logits,
+        cached_ids,
+        cached_logits,
+        raw_atol=float(config["raw_logit_diagnostic_atol"]),
+        raw_rtol=float(config["raw_logit_diagnostic_rtol"]),
+        centered_atol=float(config["centered_logit_diagnostic_atol"]),
+        centered_rtol=float(config["centered_logit_diagnostic_rtol"]),
+        probability_atol=float(config["probability_diagnostic_atol"]),
+        probability_rtol=float(config["probability_diagnostic_rtol"]),
+        max_total_variation_distance=float(
+            config["max_total_variation_distance"]
+        ),
+    )
 
 
 def validate_cache(
@@ -618,8 +622,7 @@ def run_budget(
                 uncached_logits,
                 cached_ids,
                 cached_logits,
-                float(config["atol"]),
-                float(config["rtol"]),
+                config,
             )
             expected_cache_tokens = (
                 int(initial_embeddings.shape[1])
@@ -634,15 +637,24 @@ def run_budget(
                 int(config["warmup_runs"]),
                 int(config["measured_runs"]),
             )
-            token_id_requirement_satisfied = bool(
-                comparison["token_ids_exact"]
-                or not bool(config["require_exact_token_ids"])
+            trace_acceptance = evaluate_trace_acceptance(
+                comparison,
+                require_exact_token_ids=bool(
+                    config["require_exact_token_ids"]
+                ),
+                require_total_variation_bound=bool(
+                    config["require_total_variation_bound"]
+                ),
             )
-            sample_passed = bool(
-                comparison["allclose"]
-                and token_id_requirement_satisfied
-                and cache_check["exact"]
-            )
+            sample_acceptance = {
+                **trace_acceptance,
+                "cache_exact_required": True,
+                "cache_exact": bool(cache_check["exact"]),
+                "passed": bool(
+                    trace_acceptance["passed"] and cache_check["exact"]
+                ),
+            }
+            sample_passed = bool(sample_acceptance["passed"])
             sample_results.append(
                 {
                     "row": row,
@@ -656,9 +668,7 @@ def run_budget(
                         skip_special_tokens=True,
                     ),
                     "correctness": comparison,
-                    "token_id_requirement_satisfied": (
-                        token_id_requirement_satisfied
-                    ),
+                    "acceptance": sample_acceptance,
                     "cache": cache_check,
                     "benchmark": benchmark,
                     "passed": sample_passed,
@@ -857,7 +867,7 @@ def main():
         )
     )
     report = {
-        "artifact_type": "phase5a_native_jittor_gpt2_kv_cache_v1",
+        "artifact_type": "phase5a_native_jittor_gpt2_kv_cache_v3",
         "source_commit": source_commit(),
         "device": args.device,
         "jittor_version": jt.__version__,
@@ -914,9 +924,29 @@ def main():
         "image_names": expected_image_names,
         "results": results,
         "invariants_passed": invariant_passed,
+        "numerical_contract": {
+            "raw_logits": "diagnostic_only",
+            "centered_logits": "diagnostic_only",
+            "softmax_probabilities": "diagnostic_only",
+            "probability_distribution": {
+                "role": "acceptance",
+                "metric": "per-step total variation distance",
+                "threshold": float(
+                    config["max_total_variation_distance"]
+                ),
+            },
+            "acceptance_requires": [
+                "exact greedy token IDs when configured",
+                "per-step probability total variation within the configured bound",
+                "exact cache layer/shape/length contract",
+            ],
+        },
         "claim_boundary": (
-            "Phase 5A validates cached decoding correctness and reports runtime "
-            "measurements; it does not claim caption-quality improvement."
+            "Phase 5A validates exact greedy decisions, cache structure, and "
+            "distribution-level alignment while retaining raw, centered, and "
+            "coordinatewise probability drift as diagnostics. It reports "
+            "runtime measurements and does not claim "
+            "raw-logit strict equality or caption-quality improvement."
         ),
         "passed": bool(
             invariant_passed
