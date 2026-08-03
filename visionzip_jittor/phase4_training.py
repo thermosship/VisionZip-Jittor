@@ -205,8 +205,12 @@ def save_phase4_checkpoint(
     projector,
     optimizer,
     metadata: Dict[str, Any],
+    artifact_type: str = "phase4a_projector_checkpoint_v1",
 ) -> None:
     """Atomically save Projector and complete Jittor Adam state to NPZ."""
+
+    if not artifact_type.strip():
+        raise ValueError("checkpoint artifact_type must not be empty")
 
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -221,7 +225,7 @@ def save_phase4_checkpoint(
     checkpoint_metadata = dict(metadata)
     checkpoint_metadata.update(
         {
-            "artifact_type": "phase4a_projector_checkpoint_v1",
+            "artifact_type": artifact_type,
             "optimizer": "jittor.optim.Adam",
             "optimizer_n_step": int(optimizer.n_step),
             "optimizer_lr": float(optimizer.lr),
@@ -243,22 +247,49 @@ def save_phase4_checkpoint(
     os.replace(temporary, path)
 
 
+
+def step_adam_after_gradient_accumulation(
+    optimizer,
+    completed_optimizer_steps: int,
+) -> int:
+    """Apply one Adam update with bias correction based on optimizer steps.
+
+    Jittor 1.3.11 increments ``optimizer.n_step`` inside every
+    ``optimizer.backward`` call. During gradient accumulation that would make
+    Adam bias correction count microbatches instead of updates. Reset it to the
+    one-based update number immediately before ``step``.
+    """
+
+    if completed_optimizer_steps < 0:
+        raise ValueError("completed_optimizer_steps must be non-negative")
+    optimizer.n_step = completed_optimizer_steps + 1
+    optimizer.step()
+    return int(optimizer.n_step)
+
 def load_phase4_checkpoint(
     path: Union[str, Path],
     projector,
     optimizer,
+    expected_artifact_type: str = "phase4a_projector_checkpoint_v1",
 ) -> Dict[str, Any]:
     """Restore Projector and Jittor Adam state, validating every tensor."""
 
+    if not expected_artifact_type.strip():
+        raise ValueError("expected checkpoint artifact_type must not be empty")
+
     path = Path(path)
     if not path.is_file():
-        raise FileNotFoundError(f"Missing Phase 4A checkpoint: {path}")
+        raise FileNotFoundError(f"Missing Phase 4 checkpoint: {path}")
     with np.load(path, allow_pickle=False) as archive:
         if "metadata_json" not in archive.files:
             raise ValueError("checkpoint is missing metadata_json")
         metadata = json.loads(str(archive["metadata_json"].item()))
-        if metadata.get("artifact_type") != "phase4a_projector_checkpoint_v1":
-            raise ValueError("unsupported Phase 4A checkpoint artifact type")
+        if metadata.get("artifact_type") != expected_artifact_type:
+            raise ValueError(
+                "unsupported Phase 4 checkpoint artifact type: "
+                f"expected {expected_artifact_type!r}, "
+                f"got {metadata.get('artifact_type')!r}"
+            )
         state = projector.state_dict()
         expected_projector = {f"projector::{name}" for name in state}
         actual_projector = {

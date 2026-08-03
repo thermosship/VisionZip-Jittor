@@ -2,9 +2,9 @@
 
 > **Purpose:** This is the authoritative cross-account handoff file for Codex agents working on this reproduction. A new agent may have no access to earlier chats. Read this file completely before modifying code, running expensive jobs, changing claims, or proposing the next phase.
 >
-> **Last authoritative update:** 2026-08-03 (Asia/Shanghai), after commit `42534b4` fixed the feature-layer call site, the full frozen CLIP/VisionZip feature store completed on AutoDL, and independent manifest/shard/order/range/finiteness/reuse validation passed.
+> **Last authoritative update:** 2026-08-03 (Asia/Shanghai), after synchronized commit `3c8a3f1` recorded the validated frozen feature store and the Windows working copy implemented the complete Phase 4B trainer/evaluator source slice. All 56 Windows tests pass with 14 environment-only skips; AutoDL Jittor validation and all real Phase 4B training runs remain pending.
 >
-> **Current phase boundary:** Phases 1, 2, 3A, 3B, and Phase 4A are complete. **Phase 4B is in progress**. Commit `42534b4` is synchronized on Windows, GitHub, and AutoDL; the licensed 8,192-sample dataset and all 32 frozen feature shards are complete and validated. The next blocking action is implementing the Phase 4B trainer/evaluator source slice. No Phase 4B training, held-out improvement, or caption-quality result is claimed.
+> **Current phase boundary:** Phases 1, 2, 3A, 3B, and Phase 4A are complete. **Phase 4B is in progress**. Commit `3c8a3f1` is synchronized on Windows, GitHub, and AutoDL; the licensed 8,192-sample dataset and all 32 frozen feature shards are complete and validated. The trainer/evaluator now exists only as an uncommitted Windows source slice and has passed Windows tests. The next blocking action is commit/push/sync followed by AutoDL Jittor tests and a short CUDA stop/resume smoke. No Phase 4B training, held-out improvement, or caption-quality result is claimed.
 
 ## 1. Mandatory instructions for every future Codex agent
 
@@ -91,7 +91,7 @@ The user's low local RAM does not limit remote model loading. Avoid opening larg
 
 ## 3. Current live state
 
-Last remote resource verification was on 2026-08-03 after the Phase 4A fresh and explicit-resume runs. The Phase 4B change set described below currently exists in the Windows working copy and must be committed/pushed before AutoDL preflight:
+Last remote resource verification was on 2026-08-03 immediately before the Phase 4B trainer/evaluator commit. AutoDL is synchronized at `3c8a3f1`, the GPU is idle, and generated artifacts remain intentionally untracked. The new trainer/evaluator source slice currently exists only in the Windows working copy and must be committed/pushed before AutoDL Jittor validation:
 
 ```text
 Remote host: autodl-container-10894aa74d-da4e9cbe
@@ -156,6 +156,17 @@ Pinned model/revision/layer/config/dataset hashes: all exact
 --verify-existing: passed=true, reused=true, exit code 0
 Reuse safety: valid shard accepted; truncated NPZ rejected with BadZipFile
 Feature validation: passed=true
+Synchronized frozen-feature documentation commit: 3c8a3f1
+Remote re-verification on 2026-08-03: HEAD 3c8a3f1, RTX 4090 idle, about 880 GiB RAM available
+Local Phase 4B trainer/evaluator files: visionzip_jittor/phase4b_training.py, scripts/run_phase4b_training.py, tests/test_phase4b_training.py
+Checkpoint compatibility: Phase 4A default artifact remains unchanged; Phase 4B uses phase4b_projector_checkpoint_v1
+Training schedule: deterministic resume-safe shuffled stream, microbatch 4 x accumulation 4, target-token-weighted effective-batch NLL
+Optimizer correction: reset Jittor Adam n_step to completed_optimizer_steps + 1 immediately before each accumulated update
+Scheduler: 67-step linear warmup then cosine decay; final configured update remains positive
+Evaluation: exact held-out target NLL/perplexity plus deterministic 128-sample BLEU-1, add-one-smoothed BLEU-4, and mean ROUGE-L F1
+Checkpointing: rolling last 4, separate best checkpoint, final checkpoint, optimizer-step-boundary resume identity checks
+Windows focused/full result after implementation: 5 focused tests and 56 full tests OK; 14 environment-only skips
+AutoDL Jittor tests, CUDA smoke/resume, 1,344-step training, held-out numbers, and evidence archive: not run yet
 Training/evaluation: not implemented or run
 ```
 
@@ -687,6 +698,11 @@ visionzip_jittor/phase4b_data.py
 visionzip_jittor/phase4b_features.py
   Strict licensed-data plan, attribution/prepared-manifest validation, and hashed sharded feature storage.
 
+visionzip_jittor/phase4b_training.py
+scripts/run_phase4b_training.py
+tests/test_phase4b_training.py
+  Deterministic full-store loader, resume-safe batching/LR, caption metrics, rolling checkpoint policy, frozen-GPT-2 Projector training, held-out evaluation, and Windows coverage. This source is not yet AutoDL-validated at the time of this row.
+
 scripts/prepare_phase4b_dataset.py
 scripts/precompute_phase4b_features.py
   Default-safe preflight/materialization and frozen real CLIP/VisionZip feature precompute.
@@ -868,13 +884,13 @@ Feature store: 32 expected NPZ shards of 256 samples, float32
 
 Exact next actions:
 
-1. Implement the Phase 4B trainer/evaluator source slice: sharded feature loading, Projector-only gradient accumulation, warmup/scheduler, rolling/best/final checkpoint retention, and exact resume.
-2. Implement held-out target-only NLL/perplexity, BLEU-1/BLEU-4 with documented smoothing, ROUGE-L, and a deterministic generation subset, preserving the one-synthetic-reference claim boundary.
-3. Add focused unit tests and run full Windows plus AutoDL test discovery before any expensive training.
-4. Run fresh CUDA training/evaluation and an explicit resume run in `tmux`, proving GPT-2 stays frozen and unchanged.
-5. Archive/hash evidence, update README/this handoff, and only then call Phase 4B complete.
+1. Explicitly stage/commit/push the Phase 4B source/tests/handoff files; do not stage generated artifacts.
+2. Fast-forward AutoDL to that commit and run full Jittor test discovery, including the focused accumulated-Adam `n_step` and Phase 4B checkpoint artifact test.
+3. Run a short CUDA fresh stop at optimizer step 2 and resume to step 4, checking exact schedule/LR/Adam boundary/GPT-2 immutability and both run summaries.
+4. Only after the smoke/resume passes, launch the fixed 1,344-step training/evaluation in `tmux`; monitor the first evaluation/checkpoint before leaving it unattended.
+5. Validate held-out NLL/perplexity and the deterministic 128-sample single-BLIP-2-reference metrics, archive/hash evidence, update README/this handoff, and only then call Phase 4B complete.
 
-Current claim boundary: the licensed real paired dataset has been materialized and validated, so Phase 4B has progressed beyond planning. Frozen feature precompute, real paired-data training, held-out evaluation, improvement, and caption-quality claims do not exist yet.
+Current claim boundary: the licensed real paired dataset and all frozen CLIP/VisionZip features are materialized and independently validated, and the trainer/evaluator passes Windows tests. AutoDL Jittor validation, real Projector training, held-out evaluation, improvement, and caption-quality claims do not exist yet.
 
 ## 12. Network and recovery notes
 
@@ -919,5 +935,6 @@ Use the environment settings in section 4.3. Do not repeatedly delete the workin
 | 2026-08-03 | `14e527f` synchronized on Windows, GitHub, and AutoDL; dataset artifacts remain untracked | Reran the corrected materialization from the pinned cache in `tmux`; exit code was 0 and all 8,192 images were written. Independent full validation passed with 7,168/1,024 train/validation samples, sample-manifest SHA256 `c2b205622a67349ee22547e2648c264cd6a71979906d57cc4b59fede10e330f2`, all five source shard hashes/sizes exact, 8,192 distinct source/embedded digest pairs, and zero attribution or decoded-dimension errors. | Commit/push this handoff update, sync AutoDL, then precompute and verify the 32 frozen CLIP/VisionZip feature shards in `tmux`. |
 | 2026-08-03 | `4d376c8` synchronized plus local feature-precompute call-site correction | Launched `phase4b-features`; it failed safely before writing shards with `ValueError: num_layers must be positive`. Inspection found `scripts/precompute_phase4b_features.py` passed `(requested_layer_index, layer_count)` to the helper whose contract is `(num_layers, requested)`. The call now uses explicit keyword arguments; targeted tests and all 50 Windows tests pass. | Commit/push/sync the correction, then relaunch feature precompute in `tmux` and inspect the first completed shard before leaving the long job unattended. |
 | 2026-08-03 | `42534b4` synchronized on Windows, GitHub, and AutoDL; feature artifacts remain untracked | Relaunched frozen feature precompute in `tmux`; it completed with exit code 0 and produced 32 shards covering all 8,192 samples. Independent validation passed: exact model/revision/layer/config/dataset hashes, exact sample order, float32 `[N,65,1024]` finite tokens, legal discrete arrays, manifest SHA256 `2673aafd3ec7084c7eae54cd8eaac693fc21f84892cccf60a0c14f8c349a36a9`, successful `--verify-existing` reuse, and rejection of a truncated shard. | Commit/push this handoff result, then implement the Phase 4B trainer/evaluator and its focused tests before launching real training. |
+| 2026-08-03 | `3c8a3f1` synchronized plus uncommitted Windows Phase 4B trainer/evaluator slice | Implemented single-allocation exact-order feature loading, deterministic optimizer-step batches, target-token-weighted gradient accumulation with Jittor Adam `n_step` correction, warmup/cosine LR, Phase 4B checkpoint/resume identity, rolling/best/final retention, held-out NLL/perplexity, deterministic single-reference BLEU/ROUGE generation evaluation, and intentional stop-at-step support. All 56 Windows tests pass with 14 environment-only skips. No AutoDL test or training result exists yet. | Explicitly commit/push/sync source and handoff files, run AutoDL Jittor tests, then perform a fresh step-2 and resumed step-4 CUDA smoke before the 1,344-step run. |
 
 When adding a new row, keep older rows. The newest row should state the exact commit or dirty-worktree state, the verified result, and the next blocking action.

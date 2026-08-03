@@ -62,6 +62,55 @@ class Phase4JittorTests(unittest.TestCase):
         for actual, expected in zip(optimizer.param_groups[0]["values"], expected_v):
             np.testing.assert_array_equal(actual.numpy(), expected)
 
+    def test_phase4b_checkpoint_type_and_accumulated_adam_step(self):
+        import jittor as jt
+
+        from visionzip_jittor.phase4_training import (
+            load_phase4_checkpoint,
+            save_phase4_checkpoint,
+            step_adam_after_gradient_accumulation,
+        )
+        from visionzip_jittor.projector import MultimodalProjector
+        from visionzip_jittor.projector_config import ProjectorConfig
+
+        projector = MultimodalProjector(
+            ProjectorConfig(
+                projector_type="linear",
+                vision_hidden_size=2,
+                language_hidden_size=3,
+                vocab_size=8,
+            )
+        )
+        optimizer = jt.optim.Adam(projector.parameters(), lr=1e-3)
+        visual = jt.array(np.ones((1, 2, 2), dtype=np.float32))
+        optimizer.zero_grad()
+        optimizer.backward((projector(visual) ** 2).mean() / 2.0)
+        optimizer.backward((projector(visual) ** 2).mean() / 2.0)
+        self.assertEqual(optimizer.n_step, 2)
+        corrected = step_adam_after_gradient_accumulation(optimizer, 0)
+        self.assertEqual(corrected, 1)
+        self.assertEqual(optimizer.n_step, 1)
+
+        with tempfile.TemporaryDirectory() as directory:
+            checkpoint = Path(directory) / "projector_step_000001.npz"
+            save_phase4_checkpoint(
+                checkpoint,
+                projector,
+                optimizer,
+                {"global_step": 1},
+                artifact_type="phase4b_projector_checkpoint_v1",
+            )
+            with self.assertRaisesRegex(ValueError, "artifact type"):
+                load_phase4_checkpoint(checkpoint, projector, optimizer)
+            metadata = load_phase4_checkpoint(
+                checkpoint,
+                projector,
+                optimizer,
+                expected_artifact_type="phase4b_projector_checkpoint_v1",
+            )
+        self.assertEqual(metadata["artifact_type"], "phase4b_projector_checkpoint_v1")
+        self.assertEqual(metadata["optimizer_n_step"], 1)
+
     def test_tiny_teacher_forced_step_updates_only_projector(self):
         import jittor as jt
 
