@@ -2,7 +2,7 @@
 
 > **Purpose:** This is the authoritative cross-account handoff file for Codex agents working on this reproduction. A new agent may have no access to earlier chats. Read this file completely before modifying code, running expensive jobs, changing claims, or proposing the next phase.
 >
-> **Last authoritative update:** 2026-08-03 (Asia/Shanghai), after Phase 4A implementation, Windows/AutoDL tests, and fresh plus explicit-resume CUDA validation.
+> **Last authoritative update:** 2026-08-03 (Asia/Shanghai), after Phase 4A implementation, validation, evidence transfer, GitHub push, and Windows/AutoDL synchronization.
 >
 > **Current phase boundary:** Phases 1, 2, 3A, 3B, and Phase 4A are complete. Phase 4B licensed paired-dataset training has **not started**.
 
@@ -98,6 +98,7 @@ Remote host: autodl-container-10894aa74d-da4e9cbe
 Repository: /root/autodl-tmp/VisionZip-Jittor
 Branch: main
 Phase 4A implementation commit: 7a62be2 feat: add phase-four paired projector training
+Synchronized Phase 4A result commit: 19029cf docs: record phase-four paired training results
 GPU: NVIDIA GeForce RTX 4090, 24564 MiB
 Driver: 580.105.08
 nvidia-smi maximum CUDA compatibility: 13.0
@@ -847,5 +848,6 @@ Use the environment settings in section 4.3. Do not repeatedly delete the workin
 |---|---|---|---|
 | 2026-08-03 | `c2ac559`, Phase 3B complete | Passwordless SSH and VS Code Remote-SSH validated; created this authoritative cross-account handoff before Phase 4A. | Commit/push this file, then design and implement Phase 4A training infrastructure. |
 | 2026-08-03 | `7a62be2` plus the documentation commit containing this row | Implemented paired-manifest training, Projector-only multi-step optimization, complete Projector/Adam checkpoints and resume; Windows and AutoDL tests passed; fresh and explicit-resume CUDA runs both recorded `passed: true`. | Evidence archive created, transferred, and SHA256-verified; push the Phase 4A commits and fast-forward AutoDL, then plan Phase 4B. |
+| 2026-08-03 | `19029cf` synchronized on Windows, GitHub, and AutoDL | Phase 4A source/docs are committed and pushed; both environments point to the same commit; the 12-entry evidence archive is present on Windows with verified SHA256 `01942F...6858`. | Begin Phase 4B only by first writing the licensed-dataset plan; do not claim external-dataset training has started. |
 
 When adding a new row, keep older rows. The newest row should state the exact commit or dirty-worktree state, the verified result, and the next blocking action.
