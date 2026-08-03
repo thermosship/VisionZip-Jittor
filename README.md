@@ -2,7 +2,7 @@
 
 使用 **Jittor 原生张量算子**复现 VisionZip 的视觉 Token 压缩核心，并建立可重复的 PyTorch/Jittor 数值对齐流程。
 
-> Current status: Phases 1, 2, 3A, 3B, and the Phase 4A paired-training infrastructure are complete. On 2026-08-03, the native Jittor Projector trained through a frozen real GPT-2 on deterministic paired image-caption inputs, reduced full-train loss from `9.82573` to `4.47974`, restored complete Projector/Adam checkpoints, and produced top-level `passed: true`.
+> Current status: Phases 1, 2, 3A, 3B, and Phase 4A are complete. **Phase 4B is in progress**: the licensed dataset decision, pinned 8,192-sample pilot configuration, preparation/preflight code, attribution manifest, and sharded frozen-feature infrastructure are implemented. No external dataset has been downloaded and no Phase 4B training or held-out result is claimed yet.
 
 ## 1. 项目目标
 
@@ -15,7 +15,7 @@
 - 仅训练多模态 Projector 的高效微调；
 - 训练、测试、性能和可视化日志。
 
-Current completed scope includes Phases 1, 2, 3A, 3B, and the Phase 4A paired image-text Projector training infrastructure:
+Completed scope includes Phases 1, 2, 3A, 3B, and Phase 4A. Phase 4B preparation infrastructure is currently under validation:
 
 - 原生 Jittor VisionZip 核心；
 - 独立 PyTorch 参考实现；
@@ -33,6 +33,7 @@ Current completed scope includes Phases 1, 2, 3A, 3B, and the Phase 4A paired im
 - 64/128/192 三档真实 CLIP → VisionZip → Projector → GPT-2 路径的 CUDA 验收。;
 - Phase 4A versioned paired manifests, deterministic splits, and target-only causal masks;
 - repeated Projector-only training on precomputed real CLIP/VisionZip tokens, JSONL metrics, complete Projector/Adam checkpoints, and resume.
+- Phase 4B pinned licensed-data configuration, deterministic 7,168/1,024 split, row-level attribution records, storage preflight, and resumable 256-sample feature shards.
 
 ## 2. 上游版本与复现范围
 
@@ -46,6 +47,8 @@ Snapshot date: 2026-08-01
 ```
 
 详细版本记录见 [`references/UPSTREAM.md`](references/UPSTREAM.md)，第一阶段数值结果见 [`docs/PHASE1_RESULTS.md`](docs/PHASE1_RESULTS.md)，第二阶段真实 CLIP 实测结果见 [`docs/PHASE2_REAL_CLIP.md`](docs/PHASE2_REAL_CLIP.md)，Phase 3A Projector smoke 见 [`docs/PHASE3_PROJECTOR_FROZEN_LLM.md`](docs/PHASE3_PROJECTOR_FROZEN_LLM.md)，Phase 3B 真实 GPT-2 结果见 [`docs/PHASE3B_REAL_GPT2.md`](docs/PHASE3B_REAL_GPT2.md)。 Phase 4A paired-training results are in [`docs/PHASE4A_PAIRED_TRAINING.md`](docs/PHASE4A_PAIRED_TRAINING.md).
+
+Phase 4B dataset, licensing, storage, feature, schedule, evaluation, and acceptance policy is fixed in [`docs/PHASE4B_DATASET_PLAN.md`](docs/PHASE4B_DATASET_PLAN.md).
 
 本仓库没有复制官方 LLaVA 模型代码。`reference/pytorch_visionzip.py` 是为了框架数值对齐而编写的独立参考模块。
 
@@ -366,13 +369,30 @@ An explicit second invocation resumed from step 10 and continued to step 30 with
 
 This three-image run is an infrastructure smoke/overfit test. Its validation loss did not improve and its generated text was poor; neither is presented as captioning quality or generalization evidence. Full commands, schemas, hashes, acceptance criteria, and non-claims are in [`docs/PHASE4A_PAIRED_TRAINING.md`](docs/PHASE4A_PAIRED_TRAINING.md). Evidence archive: `VisionZip-Jittor-phase4a-evidence-20260803.tar.gz`, SHA256 `01942F1FD7E82FAF6EB5E8BCB9FFCA9C2474B50718EEA47E00BA446960926858` (12 entries).
 
+### 8.12 Phase 4B licensed paired-data preparation (in progress)
+
+Phase 4B fixes the pilot dataset to `common-canvas/commoncatalog-cc-by` at revision `80f50fe4a1ca937f37a11be3f8eee5199d776ff3`. The pilot reads five explicitly pinned Parquet objects from the `512-768` least-dimension and square-aspect bucket, containing 9,621 source rows and about 1.264 GB of source data. It materializes exactly 8,192 accepted CC-BY samples, with a deterministic seed-2026 split of 7,168 train and 1,024 validation samples.
+
+The checked-in infrastructure currently provides:
+
+- strict versioned configuration and source-object metadata;
+- a default no-download storage preflight with about 8.39 GiB estimated headroom-inclusive demand;
+- explicit `--execute` materialization with image decoding, source SHA256 checks, caption/status/license filters, duplicate rejection, and row-level creator/page/license attribution;
+- hashed `samples.jsonl` and prepared-dataset manifest validation;
+- frozen real CLIP/VisionZip feature precompute at nominal budget 64 (`65 x 1024` including CLS);
+- 256-sample NPZ feature shards, expected to produce 32 shards, with sample-order and SHA256 verification plus safe reuse after interruption;
+- unit tests for configuration strictness, deterministic splits, manifest integrity, and feature-shard round trips.
+
+This is an infrastructure milestone only. The dataset has not yet been downloaded, no feature shards have been generated, and no Phase 4B training or held-out caption metric exists. The primary future acceptance metric is held-out target-only NLL/perplexity; BLEU-1, BLEU-4, and ROUGE-L are secondary single-reference metrics. Full licensing, commands, schedule, storage estimate, acceptance gates, and non-claims are documented in [`docs/PHASE4B_DATASET_PLAN.md`](docs/PHASE4B_DATASET_PLAN.md).
+
 ## 9. 项目结构
 
 ```text
 VisionZip-Jittor/
 ├── assets/sample_images/       # 可重复样例图生成位置
-├── configs/                    # VisionZip, Projector, GPT-2, and Phase 4A configs
+├── configs/                    # VisionZip, Projector, GPT-2, Phase 4A, and Phase 4B configs
 ├── manifests/                  # versioned paired image-text manifests
+├── datasets/                   # generated Phase 4B images/manifests, not committed
 ├── docs/                       # 算法和实验结果说明
 ├── environment/                # AutoDL 激活和环境证据脚本
 ├── logs/                       # generated run logs, not committed
@@ -392,7 +412,10 @@ VisionZip-Jittor/
     |-- gpt2.py                 # native Jittor real GPT-2
     |-- phase4_config.py        # Phase 4A paired-training configuration
     |-- phase4_data.py          # manifest, split, feature and mask helpers
-    `-- phase4_training.py      # batches, metrics and complete checkpoints
+    |-- phase4_training.py      # batches, metrics and complete checkpoints
+    |-- phase4b_config.py       # pinned dataset/feature/training/evaluation plan
+    |-- phase4b_data.py         # licensed sample filtering, attribution and split
+    `-- phase4b_features.py     # hashed sharded frozen-feature store
 ```
 
 ## 10. 阶段状态
@@ -419,14 +442,19 @@ VisionZip-Jittor/
 - [x] Run the Phase 3B real GPT-2 path on AutoDL for 64/128/192 and save a `real_llm: true`, `passed: true` report;
 - [x] Add a versioned Phase 4A paired manifest, deterministic split, target masks, and precomputed-feature loader;
 - [x] Add repeated Projector-only training, JSONL metrics, complete Projector/Adam checkpoints, and resume;
-- [x] Run the Phase 4A fresh and resumed paths on AutoDL and save `passed: true` reports.
+- [x] Run the Phase 4A fresh and resumed paths on AutoDL and save `passed: true` reports;
+- [x] Pin the Phase 4B CommonCatalog CC-BY revision, five pilot shards, exact 8,192-sample target, attribution policy, deterministic split, and disk estimate;
+- [x] Implement Phase 4B preparation/preflight and hashed sharded feature infrastructure with unit tests;
+- [ ] Run Phase 4B preflight on AutoDL, materialize the licensed pilot subset, and precompute all 32 frozen feature shards;
+- [ ] Implement and run Phase 4B gradient-accumulated training plus held-out evaluation.
 
 ## 11. Next steps
 
-1. Select and document a licensed paired dataset for Phase 4B, then precompute frozen CLIP/VisionZip features at a fixed primary token budget.
-2. Train for a meaningful schedule and add held-out captioning metrics; do not treat the three-image Phase 4A fixture as downstream evidence.
-3. Add gradient accumulation, checkpoint retention, synchronized throughput/memory measurement, mixed precision, and KV-cache generation.
-4. After the paired-data training pipeline is stable at meaningful scale, evaluate a larger frozen language model without weakening the Projector-only optimization boundary.
+1. Validate the Phase 4B preparation and feature scripts on AutoDL, then run the no-download preflight.
+2. In `tmux`, materialize the pinned 8,192-sample CommonCatalog CC-BY pilot and verify every image/license/attribution hash.
+3. In `tmux`, precompute 32 frozen CLIP/VisionZip feature shards at nominal budget 64 and verify the final manifest.
+4. Implement the Phase 4B trainer/evaluator with gradient accumulation, rolling/best/final checkpoints, exact resume, held-out NLL/perplexity, BLEU-1/BLEU-4, and ROUGE-L.
+5. Only after fresh and explicit-resume CUDA runs pass may the project claim Phase 4B completion; mixed precision, KV-cache generation, and a larger frozen LLM remain later work.
 
 ## 12. 许可证与声明
 

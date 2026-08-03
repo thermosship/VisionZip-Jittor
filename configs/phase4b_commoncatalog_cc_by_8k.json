@@ -1,0 +1,99 @@
+{
+  "artifact_type": "phase4b_config_v1",
+  "name": "commoncatalog_cc_by_8k_budget64",
+  "dataset": {
+    "dataset_id": "common-canvas/commoncatalog-cc-by",
+    "revision": "80f50fe4a1ca937f37a11be3f8eee5199d776ff3",
+    "split": "train",
+    "image_field": "jpg",
+    "caption_field": "blip2_caption",
+    "status_field": "status",
+    "accepted_status": "success",
+    "source_shards": [
+      {
+        "path": "0/least_dim_range=512-768/aspect_ratio_bucket=1-1/part-00000-tid-1462287858940325483-1ccb61a7-105e-4ce3-bb5b-325db9f8fa01-81082-1-c000.parquet",
+        "size_bytes": 157071138,
+        "num_rows": 1163,
+        "repository_oid": "6ddf4e56ffac6bf0f33d51ff80526a1789a6a8f5"
+      },
+      {
+        "path": "1/least_dim_range=512-768/aspect_ratio_bucket=1-1/part-00000-tid-1691296721949947673-8204e99d-19e8-41f4-a91b-872070333834-131281-1-c000.parquet",
+        "size_bytes": 128940680,
+        "num_rows": 944,
+        "repository_oid": "e2b6f0774483a30995eb72b54601b454088c3238"
+      },
+      {
+        "path": "2/least_dim_range=512-768/aspect_ratio_bucket=1-1/part-00000-tid-3005417052842275361-b0bbebcd-c2cf-4005-8100-38d7774e95f5-184487-1-c000.parquet",
+        "size_bytes": 208756053,
+        "num_rows": 1596,
+        "repository_oid": "2056ecd014738bfe564e17ca89bdb884217efb3e"
+      },
+      {
+        "path": "3/least_dim_range=512-768/aspect_ratio_bucket=1-1/part-00000-tid-5650131798028453470-4e889a78-6c3c-41ad-9926-dc757b33aa97-253395-1-c000.parquet",
+        "size_bytes": 301112391,
+        "num_rows": 2215,
+        "repository_oid": "27d47c5e14e08bee2254344bcafddf3a41be134e"
+      },
+      {
+        "path": "4/least_dim_range=512-768/aspect_ratio_bucket=1-1/part-00000-tid-6182919052935936321-335e76b4-409b-4aa9-b692-8f14553de664-345749-1-c000.parquet",
+        "size_bytes": 468084844,
+        "num_rows": 3703,
+        "repository_oid": "249984b330f49490f2c6b94bd3ce2297b84f6e59"
+      }
+    ],
+    "target_sample_count": 8192,
+    "validation_sample_count": 1024,
+    "split_seed": 2026,
+    "min_dimension": 336,
+    "min_caption_words": 3,
+    "max_caption_words": 40,
+    "max_caption_chars": 256,
+    "allowed_license_url_prefixes": [
+      "http://creativecommons.org/licenses/by/",
+      "https://creativecommons.org/licenses/by/"
+    ]
+  },
+  "features": {
+    "model_name_or_path": "openai/clip-vit-large-patch14-336",
+    "model_revision": "ce19dc912ca5cd21c8a653c79e251e808ccabcd1",
+    "visionzip_config": "configs/visionzip_64.json",
+    "requested_layer_index": -2,
+    "batch_size": 4,
+    "shard_size": 256,
+    "storage_dtype": "float32"
+  },
+  "training": {
+    "model_name_or_path": "openai-community/gpt2",
+    "budget": 64,
+    "projector_type": "mlp2x_gelu",
+    "vision_hidden_size": 1024,
+    "learning_rate": 0.0001,
+    "weight_decay": 0.0,
+    "micro_batch_size": 4,
+    "gradient_accumulation_steps": 4,
+    "max_optimizer_steps": 1344,
+    "warmup_steps": 67,
+    "checkpoint_every": 112,
+    "evaluation_every": 112,
+    "keep_last_checkpoints": 4,
+    "generation_eval_samples": 128,
+    "max_caption_tokens": 40,
+    "max_new_tokens": 40,
+    "seed": 2026,
+    "prompt": "Describe the image in one concise sentence:",
+    "generation_prompt": " This image shows"
+  },
+  "evaluation": {
+    "primary_metrics": [
+      "held_out_target_nll",
+      "held_out_target_perplexity"
+    ],
+    "secondary_metrics": [
+      "bleu_1_single_synthetic_reference",
+      "bleu_4_single_synthetic_reference",
+      "rouge_l_single_synthetic_reference"
+    ],
+    "reference_type": "one BLIP-2 synthetic caption per held-out image",
+    "quality_claim_policy": "Report reproducible held-out numbers only; do not claim human-caption quality or compare directly with multi-reference COCO metrics."
+  }
+}

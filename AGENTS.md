@@ -2,9 +2,9 @@
 
 > **Purpose:** This is the authoritative cross-account handoff file for Codex agents working on this reproduction. A new agent may have no access to earlier chats. Read this file completely before modifying code, running expensive jobs, changing claims, or proposing the next phase.
 >
-> **Last authoritative update:** 2026-08-03 (Asia/Shanghai), after Phase 4A implementation, validation, evidence transfer, GitHub push, and Windows/AutoDL synchronization.
+> **Last authoritative update:** 2026-08-03 (Asia/Shanghai), after Phase 4B dataset selection, local preparation/feature infrastructure implementation, full Windows tests, and a Windows no-download preflight; AutoDL preflight, download, feature generation, and training have not run.
 >
-> **Current phase boundary:** Phases 1, 2, 3A, 3B, and Phase 4A are complete. Phase 4B licensed paired-dataset training has **not started**.
+> **Current phase boundary:** Phases 1, 2, 3A, 3B, and Phase 4A are complete. **Phase 4B is in progress** at the source/config/test stage. The licensed pilot is pinned, but no external data has been downloaded and no Phase 4B result is claimed.
 
 ## 1. Mandatory instructions for every future Codex agent
 
@@ -91,7 +91,7 @@ The user's low local RAM does not limit remote model loading. Avoid opening larg
 
 ## 3. Current live state
 
-Verified on 2026-08-03 after the Phase 4A fresh and explicit-resume runs:
+Last remote resource verification was on 2026-08-03 after the Phase 4A fresh and explicit-resume runs. The Phase 4B change set described below currently exists in the Windows working copy and must be committed/pushed before AutoDL preflight:
 
 ```text
 Remote host: autodl-container-10894aa74d-da4e9cbe
@@ -108,7 +108,25 @@ Phase 4A fresh run: passed=true, steps 0 -> 30
 Phase 4A explicit resume: passed=true, steps 10 -> 30
 ```
 
-The Phase 4A source/config/test implementation is committed as `7a62be2`. README, the Phase 4A result document, and this handoff update are the documentation change set associated with the completed validation. Generated remote paths include:
+Phase 4B local source state on top of synchronized baseline `212b81e`:
+
+```text
+Dataset: common-canvas/commoncatalog-cc-by
+Pinned dataset revision: 80f50fe4a1ca937f37a11be3f8eee5199d776ff3
+Pilot source: five pinned 512-768 / square-aspect Parquet shards
+Source rows/bytes: 9,621 / 1,263,965,106
+Target samples: 8,192 (7,168 train + 1,024 validation, seed 2026)
+Primary VisionZip budget: nominal 64, actual 65 including CLS
+Prepared-data and feature-shard infrastructure: implemented locally
+Phase 4B focused unit tests: 9 passed on Windows
+Full Windows discovery: 50 tests OK, 13 Jittor-only skips
+Windows no-download preflight: passed, estimated_required_bytes=9,003,935,588
+External download: not run
+Feature precompute: not run
+Training/evaluation: not implemented or run
+```
+
+The Phase 4A source/config/test implementation remains committed as `7a62be2`; synchronized Phase 4A handoff baseline is `212b81e`. Generated remote paths include:
 
 ```text
 logs/benchmark_gpu_info.txt
@@ -631,6 +649,20 @@ tests/test_phase4_config_data.py
 tests/test_phase4_jittor.py
   Phase 4A schema/mask/determinism, checkpoint round-trip, and tiny Projector-only update tests.
 
+visionzip_jittor/phase4b_config.py
+visionzip_jittor/phase4b_data.py
+visionzip_jittor/phase4b_features.py
+  Strict licensed-data plan, attribution/prepared-manifest validation, and hashed sharded feature storage.
+
+scripts/prepare_phase4b_dataset.py
+scripts/precompute_phase4b_features.py
+  Default-safe preflight/materialization and frozen real CLIP/VisionZip feature precompute.
+
+configs/phase4b_commoncatalog_cc_by_8k.json
+docs/PHASE4B_DATASET_PLAN.md
+tests/test_phase4b_config_data.py
+  Pinned Phase 4B pilot, licensing/evaluation plan, and config/data/feature unit coverage.
+
 tests/
   All earlier config, PyTorch reference, Jittor core, Projector, GPT-2, CLIP helper, and visualization tests.
 ```
@@ -779,7 +811,7 @@ It does **not** yet prove:
 
 The fresh Phase 4A validation loss increased from `7.54148` to `7.75218`, and the generated validation text was poor. Retain both facts in future reports. They do not invalidate the infrastructure acceptance result, but they prohibit any visual-language quality claim.
 
-## 11. Next exact actions -- Phase 4B, NOT STARTED
+## 11. Next exact actions -- Phase 4B, IN PROGRESS
 
 Phase name:
 
@@ -787,30 +819,31 @@ Phase name:
 Phase 4B: licensed paired-dataset training and held-out caption evaluation
 ```
 
-Phase 4B should reuse the validated Phase 4A execution path rather than redesigning the core training loop. Before downloading or launching a large run, explicitly fix and document:
+The dataset decision and first infrastructure slice are fixed:
 
-1. dataset name, version, source URL, license, and allowed research use;
-2. dataset size/subset, filtering rules, deterministic train/validation split, and storage path under `/root/autodl-tmp`;
-3. caption normalization, maximum length, prompt template, EOS behavior, and evaluation references;
-4. primary VisionZip budget, normally nominal 64 plus CLS unless an ablation is justified;
-5. whether frozen CLIP/VisionZip features are precomputed, their shard format, hashes, and disk estimate;
-6. batch size, gradient accumulation, learning rate/schedule, total steps/epochs, seed, and checkpoint retention;
-7. held-out metrics such as BLEU/CIDEr/SPICE only where appropriate and reproducibly implemented;
-8. warm-up and synchronized throughput/memory measurement protocol;
-9. failure-recovery and resume acceptance criteria;
-10. evidence archive contents and hash procedure.
+```text
+Dataset: common-canvas/commoncatalog-cc-by
+Revision: 80f50fe4a1ca937f37a11be3f8eee5199d776ff3
+Pilot: 8,192 accepted samples from five pinned Parquet objects
+Split: 7,168 train / 1,024 validation, seed 2026
+Caption: blip2_caption, normalized and length-filtered
+License: row-level Creative Commons Attribution URLs only
+Vision encoder: openai/clip-vit-large-patch14-336 at pinned revision
+VisionZip: nominal budget 64, 65 output tokens including CLS
+Feature store: 32 expected NPZ shards of 256 samples, float32
+```
 
-Recommended immediate implementation order:
+Exact next actions:
 
-1. Write `docs/PHASE4B_DATASET_PLAN.md` before downloading a dataset.
-2. Add a versioned dataset-preparation/precompute config and manifest schema extension without weakening Phase 4A validation.
-3. Add sharded feature writing/loading and dataset integrity hashes.
-4. Add gradient accumulation and checkpoint retention while preserving Projector-only optimizer scope.
-5. Add held-out generation/evaluation scripts and unit tests on a tiny fixture.
-6. Run a small licensed subset first, verify resume and metric determinism, then scale only if disk/time estimates remain acceptable.
-7. Archive and hash evidence, update README and this handoff file, and only then call Phase 4B complete.
+1. Commit and push only the Phase 4B source/config/docs/tests; do not stage generated artifacts.
+2. Fast-forward AutoDL and run the Phase 4B script import smoke plus the default no-download preparation preflight.
+3. Confirm the preflight estimate and real `/root/autodl-tmp` free space; do not start the download if the margin is insufficient.
+4. In `tmux`, run `scripts/prepare_phase4b_dataset.py --execute`, then verify exact counts, hashes, attribution fields, decoded dimensions, and the completed manifest.
+5. In `tmux`, precompute and verify all frozen feature shards; test `--verify-existing` and interrupted-shard reuse.
+6. Implement the next source slice: gradient accumulation, rolling/best/final checkpoint retention, held-out NLL/perplexity, BLEU-1/BLEU-4, ROUGE-L, and deterministic generation subset.
+7. Run a fresh CUDA training/evaluation and an explicit resume run, archive/hash evidence, update README/this handoff, and only then call Phase 4B complete.
 
-A new agent must not describe Phase 4B as started merely because Phase 4A passed. No licensed external paired dataset has been selected or downloaded yet.
+Current claim boundary: Phase 4B has started at the planning and infrastructure level. No real paired-data materialization, feature-precompute, training, held-out improvement, or caption-quality claim exists yet.
 
 ## 12. Network and recovery notes
 
@@ -849,5 +882,6 @@ Use the environment settings in section 4.3. Do not repeatedly delete the workin
 | 2026-08-03 | `c2ac559`, Phase 3B complete | Passwordless SSH and VS Code Remote-SSH validated; created this authoritative cross-account handoff before Phase 4A. | Commit/push this file, then design and implement Phase 4A training infrastructure. |
 | 2026-08-03 | `7a62be2` plus the documentation commit containing this row | Implemented paired-manifest training, Projector-only multi-step optimization, complete Projector/Adam checkpoints and resume; Windows and AutoDL tests passed; fresh and explicit-resume CUDA runs both recorded `passed: true`. | Evidence archive created, transferred, and SHA256-verified; push the Phase 4A commits and fast-forward AutoDL, then plan Phase 4B. |
 | 2026-08-03 | `19029cf` synchronized on Windows, GitHub, and AutoDL | Phase 4A source/docs are committed and pushed; both environments point to the same commit; the 12-entry evidence archive is present on Windows with verified SHA256 `01942F...6858`. | Begin Phase 4B only by first writing the licensed-dataset plan; do not claim external-dataset training has started. |
+| 2026-08-03 | `212b81e` baseline plus local Phase 4B infrastructure change set | Selected and pinned CommonCatalog CC-BY, fixed the 8,192-sample pilot and held-out policy, implemented safe preparation/preflight and hashed feature-shard modules/scripts, passed 9 focused tests and 50-test full Windows discovery, and passed a Windows no-download preflight. No download or training has run. | Commit/push, sync AutoDL, then run import smoke and the AutoDL no-download preflight. |
 
 When adding a new row, keep older rows. The newest row should state the exact commit or dirty-worktree state, the verified result, and the next blocking action.
