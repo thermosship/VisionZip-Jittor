@@ -196,7 +196,7 @@ source environment/activate_jittor.sh
 python -m unittest discover -s tests -v
 ```
 
-Phase 5A 的 clean-commit AutoDL discovery 结果为 `Ran 74 tests`, `OK (skipped=8)`。Submission Readiness 新增 3 个纯 Python 测试后，Windows discovery 为 `Ran 77 tests`, `OK (skipped=18)`；本轮提交后将在 AutoDL clean commit 上再次执行完整验证。
+提交材料 commit `7c1d45f` 的验证结果：Windows discovery 为 `Ran 77 tests`, `OK (skipped=18)`；AutoDL/Jittor 首次 discovery 遇到已知的间歇性 Jittor segfault，受影响的 Phase 3 测试随后独立通过 `2/2`，完整 retry 通过 `Ran 77 tests`, `OK (skipped=8)`，且 `compileall`、`git diff --check` 均通过。首次失败和成功重试日志保留在 AutoDL 的 `logs/submission_readiness/`，不纳入 Git。
 
 ## 7. PyTorch/Jittor 对齐
 
