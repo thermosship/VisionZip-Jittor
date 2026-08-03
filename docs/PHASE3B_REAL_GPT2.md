@@ -119,6 +119,9 @@ export HF_HUB_DISABLE_XET=1
 export HF_HUB_ETAG_TIMEOUT=60
 export HF_HUB_DOWNLOAD_TIMEOUT=600
 export HF_HOME=/root/autodl-tmp/cache/huggingface
+export USE_TORCH=1
+export USE_TF=0
+export USE_FLAX=0
 mkdir -p logs/phase3b
 
 /root/miniconda3/bin/python \
@@ -139,7 +142,11 @@ outputs/phase3b/gpt2/text_reference.npz
 outputs/phase3b/gpt2/tokenizer/
 ```
 
-The weight NPZ is large and intentionally ignored by Git.
+The weight NPZ is large and intentionally ignored by Git. Conda activation does
+not clear `USE_TORCH`; if the shell was previously used for the Jittor runner,
+`USE_TORCH=0` would make Transformers deliberately hide an otherwise installed
+PyTorch. The exporter now forces `USE_TORCH=1`, and the commands above state it
+explicitly as well.
 
 ## 7. Prepare the Jittor environment
 

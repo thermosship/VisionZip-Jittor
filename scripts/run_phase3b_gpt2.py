@@ -17,9 +17,11 @@ import time
 from typing import Dict, Iterable, List, Optional
 
 os.environ.setdefault("NVIDIA_TF32_OVERRIDE", "0")
-os.environ.setdefault("USE_TORCH", "0")
-os.environ.setdefault("USE_TF", "0")
-os.environ.setdefault("USE_FLAX", "0")
+# The native runner uses Transformers only for its tokenizer. Force framework
+# backends off even if this shell was previously used by the PyTorch exporter.
+os.environ["USE_TORCH"] = "0"
+os.environ["USE_TF"] = "0"
+os.environ["USE_FLAX"] = "0"
 
 import jittor as jt
 import numpy as np

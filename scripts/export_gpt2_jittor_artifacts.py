@@ -10,8 +10,11 @@ import os
 from pathlib import Path
 import sys
 
-os.environ.setdefault("USE_TF", "0")
-os.environ.setdefault("USE_FLAX", "0")
+# This exporter requires PyTorch. Override variables that may remain set after
+# using the separate Jittor environment in the same shell.
+os.environ["USE_TORCH"] = "1"
+os.environ["USE_TF"] = "0"
+os.environ["USE_FLAX"] = "0"
 
 import numpy as np
 import torch
