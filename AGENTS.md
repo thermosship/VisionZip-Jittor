@@ -2,9 +2,9 @@
 
 > **Purpose:** This is the authoritative cross-account handoff file for Codex agents working on this reproduction. A new agent may have no access to earlier chats. Read this file completely before modifying code, running expensive jobs, changing claims, or proposing the next phase.
 >
-> **Last authoritative update:** 2026-08-03 (Asia/Shanghai), after Phase 4B dataset selection, local preparation/feature infrastructure implementation, full Windows tests, and a Windows no-download preflight; AutoDL preflight, download, feature generation, and training have not run.
+> **Last authoritative update:** 2026-08-03 (Asia/Shanghai), after Phase 4B infrastructure commit `8ac45e3` was pushed and synchronized to AutoDL, all 50 AutoDL tests passed, preparation dependencies were verified, and the AutoDL no-download/storage preflight passed; external download, feature generation, and training have not run.
 >
-> **Current phase boundary:** Phases 1, 2, 3A, 3B, and Phase 4A are complete. **Phase 4B is in progress** at the source/config/test stage. The licensed pilot is pinned, but no external data has been downloaded and no Phase 4B result is claimed.
+> **Current phase boundary:** Phases 1, 2, 3A, 3B, and Phase 4A are complete. **Phase 4B is in progress**. Its licensed pilot, preparation code, feature-shard code, tests, and local/AutoDL preflights are complete; the next blocking action is dataset materialization in `tmux`. No external data has been downloaded and no Phase 4B training or quality result is claimed.
 
 ## 1. Mandatory instructions for every future Codex agent
 
@@ -108,20 +108,25 @@ Phase 4A fresh run: passed=true, steps 0 -> 30
 Phase 4A explicit resume: passed=true, steps 10 -> 30
 ```
 
-Phase 4B local source state on top of synchronized baseline `212b81e`:
+Phase 4B synchronized source/preflight state:
 
 ```text
+Infrastructure commit: 8ac45e3 (Windows, GitHub main, and AutoDL synchronized)
 Dataset: common-canvas/commoncatalog-cc-by
 Pinned dataset revision: 80f50fe4a1ca937f37a11be3f8eee5199d776ff3
 Pilot source: five pinned 512-768 / square-aspect Parquet shards
 Source rows/bytes: 9,621 / 1,263,965,106
 Target samples: 8,192 (7,168 train + 1,024 validation, seed 2026)
 Primary VisionZip budget: nominal 64, actual 65 including CLS
-Prepared-data and feature-shard infrastructure: implemented locally
-Phase 4B focused unit tests: 9 passed on Windows
-Full Windows discovery: 50 tests OK, 13 Jittor-only skips
-Windows no-download preflight: passed, estimated_required_bytes=9,003,935,588
-External download: not run
+Prepared-data and feature-shard infrastructure: committed and synchronized
+Windows full discovery: 50 tests OK, 13 Jittor-only skips
+AutoDL full discovery: 50 tests OK, 8 PyTorch-only skips
+AutoDL preparation dependencies: pyarrow 19.0.1, Pillow 10.3.0, huggingface_hub 0.36.2
+AutoDL no-download preflight: passed
+AutoDL estimated_required_bytes: 9,003,935,588
+AutoDL free_bytes at preflight: 210,363,502,592
+AutoDL Hugging Face cache at preflight: 2.2 GiB
+External download/materialization: not run
 Feature precompute: not run
 Training/evaluation: not implemented or run
 ```
@@ -835,13 +840,10 @@ Feature store: 32 expected NPZ shards of 256 samples, float32
 
 Exact next actions:
 
-1. Commit and push only the Phase 4B source/config/docs/tests; do not stage generated artifacts.
-2. Fast-forward AutoDL and run the Phase 4B script import smoke plus the default no-download preparation preflight.
-3. Confirm the preflight estimate and real `/root/autodl-tmp` free space; do not start the download if the margin is insufficient.
-4. In `tmux`, run `scripts/prepare_phase4b_dataset.py --execute`, then verify exact counts, hashes, attribution fields, decoded dimensions, and the completed manifest.
-5. In `tmux`, precompute and verify all frozen feature shards; test `--verify-existing` and interrupted-shard reuse.
-6. Implement the next source slice: gradient accumulation, rolling/best/final checkpoint retention, held-out NLL/perplexity, BLEU-1/BLEU-4, ROUGE-L, and deterministic generation subset.
-7. Run a fresh CUDA training/evaluation and an explicit resume run, archive/hash evidence, update README/this handoff, and only then call Phase 4B complete.
+1. In `tmux`, run `scripts/prepare_phase4b_dataset.py --execute`, logging to `logs/phase4b/`, then verify exact counts, hashes, attribution fields, decoded dimensions, and the completed manifest.
+2. In `tmux`, precompute and verify all frozen feature shards; test `--verify-existing` and interrupted-shard reuse.
+3. Implement the next source slice: gradient accumulation, rolling/best/final checkpoint retention, held-out NLL/perplexity, BLEU-1/BLEU-4, ROUGE-L, and deterministic generation subset.
+4. Run a fresh CUDA training/evaluation and an explicit resume run, archive/hash evidence, update README/this handoff, and only then call Phase 4B complete.
 
 Current claim boundary: Phase 4B has started at the planning and infrastructure level. No real paired-data materialization, feature-precompute, training, held-out improvement, or caption-quality claim exists yet.
 
@@ -883,5 +885,6 @@ Use the environment settings in section 4.3. Do not repeatedly delete the workin
 | 2026-08-03 | `7a62be2` plus the documentation commit containing this row | Implemented paired-manifest training, Projector-only multi-step optimization, complete Projector/Adam checkpoints and resume; Windows and AutoDL tests passed; fresh and explicit-resume CUDA runs both recorded `passed: true`. | Evidence archive created, transferred, and SHA256-verified; push the Phase 4A commits and fast-forward AutoDL, then plan Phase 4B. |
 | 2026-08-03 | `19029cf` synchronized on Windows, GitHub, and AutoDL | Phase 4A source/docs are committed and pushed; both environments point to the same commit; the 12-entry evidence archive is present on Windows with verified SHA256 `01942F...6858`. | Begin Phase 4B only by first writing the licensed-dataset plan; do not claim external-dataset training has started. |
 | 2026-08-03 | `212b81e` baseline plus local Phase 4B infrastructure change set | Selected and pinned CommonCatalog CC-BY, fixed the 8,192-sample pilot and held-out policy, implemented safe preparation/preflight and hashed feature-shard modules/scripts, passed 9 focused tests and 50-test full Windows discovery, and passed a Windows no-download preflight. No download or training has run. | Commit/push, sync AutoDL, then run import smoke and the AutoDL no-download preflight. |
+| 2026-08-03 | `8ac45e3` synchronized on Windows, GitHub, and AutoDL; handoff update in the following documentation commit | Installed only the pinned Phase 4B preparation dependency set required on AutoDL, passed all 50 AutoDL tests with 8 PyTorch-only skips, and passed the AutoDL no-download preflight with 210,363,502,592 free bytes versus 9,003,935,588 estimated required bytes. No external data was downloaded. | Launch the pinned 8,192-sample materialization in `tmux`, then validate the completed dataset manifest before feature precompute. |
 
 When adding a new row, keep older rows. The newest row should state the exact commit or dirty-worktree state, the verified result, and the next blocking action.
