@@ -24,7 +24,7 @@
 - [x] 训练范围和 non-claims；
 - [x] 机器可读 compact logs；
 - [x] 在独立 GitHub checkout 与 fresh AutoDL conda prefix 执行 README walkthrough；80 tests、合成/真实 CLIP、真实 GPT-2 smoke、Phase 4B preflight 全部通过，见 [`CLEAN_README_WALKTHROUGH.md`](CLEAN_README_WALKTHROUGH.md)；
-- [ ] 创建 submission tag/release 后再次检查所有相对链接。
+- [x] 在 50 个相对链接复核通过后，将 `5cf8cb65bf5e9df3e6b4d4990fb2769bc813c18f` 冻结为 annotated tag [`v0.1.0-jittor-submission`](https://github.com/thermosship/VisionZip-Jittor/releases/tag/v0.1.0-jittor-submission)；Release 已发布且未上传二进制资产。
 
 ## 3. 已解决的主要技术风险
 
@@ -43,10 +43,10 @@
 
 ## 4. 仍需在提交前完成的材料风险
 
-1. **GitHub Release**：从 clean walkthrough 文档提交创建 immutable submission tag/release；只发布源码和 release notes，不上传权重、数据、checkpoint 或大日志。
-2. **PPT/视频**：尚未开始；应直接复用 `docs/assets` 图表，不要重新手抄数值。
-3. **提交日列表复核**：再次检查 Jittor-Sprouts 是否新增 VisionZip。
-4. **最终声明审计**：全文搜索 `full reproduction`、`SOTA`、`LLaVA-equivalent`、`bitwise exact`、`universal speedup` 等越界表述。
+1. **PPT/视频**：尚未开始；应直接复用 `docs/assets` 图表，不要重新手抄数值。
+2. **提交日列表复核**：再次检查 Jittor-Sprouts 是否新增 VisionZip。
+3. **最终声明审计**：PPT、讲稿和视频全文检查 `full reproduction`、`SOTA`、`LLaVA-equivalent`、`bitwise exact`、`universal speedup` 等越界表述。
+4. **冻结保护**：不得移动、覆盖或重建 `v0.1.0-jittor-submission`；后续材料状态只更新 `main` 或另建新版本。
 ## 5. 证据包
 
 | 阶段 | 文件 | SHA256 |
@@ -64,4 +64,4 @@
 - 培育期代码与实验材料：**约 93%–96%**；
 - 完整提交（含 PPT、讲稿、视频）：**约 80%–85%**。
 
-干净环境 walkthrough 已完成。剩余工作以“冻结 GitHub tag/release + PPT/视频”为主，不建议在唯一提交前临时扩展到完整 LLaVA 或论文全部 benchmark。
+干净环境 walkthrough 与 GitHub tag/release 冻结均已完成。剩余工作以 PPT、讲稿、视频和提交日复核为主，不建议在唯一提交前临时扩展到完整 LLaVA 或论文全部 benchmark。
