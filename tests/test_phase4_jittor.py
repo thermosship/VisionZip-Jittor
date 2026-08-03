@@ -111,6 +111,28 @@ class Phase4JittorTests(unittest.TestCase):
         self.assertEqual(metadata["artifact_type"], "phase4b_projector_checkpoint_v1")
         self.assertEqual(metadata["optimizer_n_step"], 1)
 
+    def test_projector_trainability_can_be_restored_after_evaluation(self):
+        from visionzip_jittor.projector import MultimodalProjector
+        from visionzip_jittor.projector_config import ProjectorConfig
+
+        projector = MultimodalProjector(
+            ProjectorConfig(
+                projector_type="linear",
+                vision_hidden_size=2,
+                language_hidden_size=3,
+                vocab_size=8,
+            )
+        )
+        parameters = list(projector.parameters())
+        self.assertTrue(parameters)
+        self.assertTrue(all(not item.is_stop_grad() for item in parameters))
+
+        projector.eval()
+        self.assertTrue(all(item.is_stop_grad() for item in parameters))
+
+        projector.train()
+        self.assertTrue(all(not item.is_stop_grad() for item in parameters))
+
     def test_tiny_teacher_forced_step_updates_only_projector(self):
         import jittor as jt
 

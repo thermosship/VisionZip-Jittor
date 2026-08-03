@@ -744,6 +744,16 @@ def main():
         if completed_training
         else None
     )
+
+    # Jittor 1.3.11 implements Module.eval() by marking parameters as
+    # stop-grad. Evaluation above is intentionally read-only, but the final
+    # Projector trainability invariant must be checked after restoring the
+    # module to training mode. This changes state only, not parameter values.
+    projector.train()
+    projector_trainability_restored = all(
+        not item.is_stop_grad() for item in projector_parameters
+    )
+
     language_hash_after = parameter_sha256(language_parameters)
     language_unchanged = language_hash_before == language_hash_after
     projector_delta = max_parameter_delta(initial_projector, projector_parameters)
@@ -767,7 +777,7 @@ def main():
         and model.all_parameters_stop_grad()
         and language_unchanged
         and scope_exact
-        and all(not item.is_stop_grad() for item in projector_parameters)
+        and projector_trainability_restored
         and all_updates_finite
         and projector_delta > 0.0
         and int(optimizer.n_step) == final_step
@@ -802,8 +812,9 @@ def main():
         "language_unchanged": language_unchanged,
         "projector_parameter_count": parameter_count(projector),
         "projector_optimizer_scope_exact": scope_exact,
-        "projector_all_trainable": all(
-            not item.is_stop_grad() for item in projector_parameters
+        "projector_all_trainable": projector_trainability_restored,
+        "projector_trainability_restored_after_evaluation": (
+            projector_trainability_restored
         ),
         "projector_max_parameter_delta_from_run_start": projector_delta,
         "start_optimizer_step": start_step,
