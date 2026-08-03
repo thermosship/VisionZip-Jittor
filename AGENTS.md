@@ -2,9 +2,9 @@
 
 > **Purpose:** This is the authoritative cross-account handoff file for Codex agents working on this reproduction. A new agent may have no access to earlier chats. Read this file completely before modifying code, running expensive jobs, changing claims, or proposing the next phase.
 >
-> **Last authoritative update:** 2026-08-03 (Asia/Shanghai), after the first frozen-feature launch failed safely before writing shards because `resolve_layer_index` received reversed positional arguments. The call now uses explicit keyword arguments locally, and all 50 Windows tests pass.
+> **Last authoritative update:** 2026-08-03 (Asia/Shanghai), after commit `42534b4` fixed the feature-layer call site, the full frozen CLIP/VisionZip feature store completed on AutoDL, and independent manifest/shard/order/range/finiteness/reuse validation passed.
 >
-> **Current phase boundary:** Phases 1, 2, 3A, 3B, and Phase 4A are complete. **Phase 4B is in progress**. Commit `4d376c8` is synchronized on Windows, GitHub, and AutoDL; the licensed 8,192-sample dataset is materialized and validated. Frozen feature precomputation has not completed: its first launch exposed a local call-site defect, now fixed and test-validated but not yet committed/synchronized. No Phase 4B training, held-out improvement, or caption-quality result is claimed.
+> **Current phase boundary:** Phases 1, 2, 3A, 3B, and Phase 4A are complete. **Phase 4B is in progress**. Commit `42534b4` is synchronized on Windows, GitHub, and AutoDL; the licensed 8,192-sample dataset and all 32 frozen feature shards are complete and validated. The next blocking action is implementing the Phase 4B trainer/evaluator source slice. No Phase 4B training, held-out improvement, or caption-quality result is claimed.
 
 ## 1. Mandatory instructions for every future Codex agent
 
@@ -142,9 +142,20 @@ Pinned source files: 5; recomputed source SHA256 and byte sizes all exact
 Distinct source/embedded hashes: 8,192; invalid attribution and dimension mismatches: 0
 First feature-precompute launch on 4d376c8: failed before writing any shard
 Failure: resolve_layer_index received requested=-2 as num_layers and raised num_layers must be positive
-Local correction: call resolve_layer_index with explicit num_layers/requested keywords
+Correction commit: 42534b4; explicit num_layers/requested keyword call
 Windows full discovery after correction: 50 tests OK, 13 Jittor-only skips
-Feature precompute: not completed
+Second feature-precompute launch on 42534b4: completed, exit code 0
+Feature precompute result: passed=true; PyTorch 2.1.2+cu118; Transformers 4.31.0; CUDA
+Feature manifest SHA256: 2673aafd3ec7084c7eae54cd8eaac693fc21f84892cccf60a0c14f8c349a36a9
+Feature config SHA256: ff80fda5bfc9a56580ccd26ede7cf4f3a8ea3742c10c4d6f55dc5afa8dbbe6ac
+Feature shards: 32 x 256 samples; 8,192 total; 2,027,769,839 shard bytes
+Compressed tokens: float32 [N, 65, 1024], all finite
+Feature sample order: exact match to prepared dataset; all IDs unique
+Selected indices and assignments: integer shapes/ranges valid; selected indices unique per row
+Pinned model/revision/layer/config/dataset hashes: all exact
+--verify-existing: passed=true, reused=true, exit code 0
+Reuse safety: valid shard accepted; truncated NPZ rejected with BadZipFile
+Feature validation: passed=true
 Training/evaluation: not implemented or run
 ```
 
@@ -857,11 +868,11 @@ Feature store: 32 expected NPZ shards of 256 samples, float32
 
 Exact next actions:
 
-1. Commit/push the `resolve_layer_index` call-site correction and this handoff update, fast-forward AutoDL, then relaunch frozen feature precompute in `tmux` with the pinned CLIP revision, requested layer `-2` (resolved layer 22), VisionZip budget 64, batch size 4, shard size 256, and float32 storage.
-2. Verify the completed feature manifest: 8,192 samples, exactly 32 shards, exact prepared-dataset sample order, `[N, 65, 1024]` compressed-token shape, finite floats, legal indices/assignments, and exact shard SHA256 values.
-3. Run `--verify-existing` and verify that a repeated invocation reuses complete valid shards; if practical, test that an incomplete or invalid shard is not silently reused.
-4. Implement the next source slice: gradient accumulation, warmup/scheduler, rolling/best/final checkpoint retention, exact resume, held-out target-only NLL/perplexity, BLEU-1/BLEU-4 with documented smoothing, ROUGE-L, and a deterministic generation subset.
-5. Run fresh CUDA training/evaluation and an explicit resume run, archive/hash evidence, update README/this handoff, and only then call Phase 4B complete.
+1. Implement the Phase 4B trainer/evaluator source slice: sharded feature loading, Projector-only gradient accumulation, warmup/scheduler, rolling/best/final checkpoint retention, and exact resume.
+2. Implement held-out target-only NLL/perplexity, BLEU-1/BLEU-4 with documented smoothing, ROUGE-L, and a deterministic generation subset, preserving the one-synthetic-reference claim boundary.
+3. Add focused unit tests and run full Windows plus AutoDL test discovery before any expensive training.
+4. Run fresh CUDA training/evaluation and an explicit resume run in `tmux`, proving GPT-2 stays frozen and unchanged.
+5. Archive/hash evidence, update README/this handoff, and only then call Phase 4B complete.
 
 Current claim boundary: the licensed real paired dataset has been materialized and validated, so Phase 4B has progressed beyond planning. Frozen feature precompute, real paired-data training, held-out evaluation, improvement, and caption-quality claims do not exist yet.
 
@@ -907,5 +918,6 @@ Use the environment settings in section 4.3. Do not repeatedly delete the workin
 | 2026-08-03 | `ba8d89e` synchronized plus local dual-hash correction | Installed `tmux`, cached all five pinned Parquet sources, and ran the first execute attempt. It failed safely with 0 images because 9,576 otherwise acceptable rows had distinct row-source and embedded-JPEG SHA256 values. Real-row inspection established the two provenance digests are intentionally distinct; code/docs/tests now preserve both, reject malformed source digests, and all 50 Windows tests pass. | Commit/push/sync the correction, then rerun materialization from the completed source cache in `tmux`. |
 | 2026-08-03 | `14e527f` synchronized on Windows, GitHub, and AutoDL; dataset artifacts remain untracked | Reran the corrected materialization from the pinned cache in `tmux`; exit code was 0 and all 8,192 images were written. Independent full validation passed with 7,168/1,024 train/validation samples, sample-manifest SHA256 `c2b205622a67349ee22547e2648c264cd6a71979906d57cc4b59fede10e330f2`, all five source shard hashes/sizes exact, 8,192 distinct source/embedded digest pairs, and zero attribution or decoded-dimension errors. | Commit/push this handoff update, sync AutoDL, then precompute and verify the 32 frozen CLIP/VisionZip feature shards in `tmux`. |
 | 2026-08-03 | `4d376c8` synchronized plus local feature-precompute call-site correction | Launched `phase4b-features`; it failed safely before writing shards with `ValueError: num_layers must be positive`. Inspection found `scripts/precompute_phase4b_features.py` passed `(requested_layer_index, layer_count)` to the helper whose contract is `(num_layers, requested)`. The call now uses explicit keyword arguments; targeted tests and all 50 Windows tests pass. | Commit/push/sync the correction, then relaunch feature precompute in `tmux` and inspect the first completed shard before leaving the long job unattended. |
+| 2026-08-03 | `42534b4` synchronized on Windows, GitHub, and AutoDL; feature artifacts remain untracked | Relaunched frozen feature precompute in `tmux`; it completed with exit code 0 and produced 32 shards covering all 8,192 samples. Independent validation passed: exact model/revision/layer/config/dataset hashes, exact sample order, float32 `[N,65,1024]` finite tokens, legal discrete arrays, manifest SHA256 `2673aafd3ec7084c7eae54cd8eaac693fc21f84892cccf60a0c14f8c349a36a9`, successful `--verify-existing` reuse, and rejection of a truncated shard. | Commit/push this handoff result, then implement the Phase 4B trainer/evaluator and its focused tests before launching real training. |
 
 When adding a new row, keep older rows. The newest row should state the exact commit or dirty-worktree state, the verified result, and the next blocking action.
