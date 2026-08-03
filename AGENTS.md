@@ -2,9 +2,9 @@
 
 > **Purpose:** This is the authoritative cross-account handoff file for Codex agents working on this reproduction. A new agent may have no access to earlier chats. Read this file completely before modifying code, running expensive jobs, changing claims, or proposing the next phase.
 >
-> **Last authoritative update:** 2026-08-03 (Asia/Shanghai), after commit `1eadddd` was synchronized and AutoDL completed all 56 tests plus the first two-step CUDA Phase 4B smoke. The smoke performed two valid updates and wrote a resumable checkpoint, but exited with `passed=false` because Jittor 1.3.11 `Module.eval()` marks parameters stop-grad before the final Projector trainability check. The Windows working copy now restores `projector.train()` after evaluation, records that restoration explicitly, and passes all 57 Windows tests with 15 environment-only skips.
+> **Last authoritative update:** 2026-08-03 (Asia/Shanghai), after synchronized correction commit `92cb004` fixed the Jittor evaluation-state false negative. All 57 tests pass on Windows and AutoDL; the corrected fresh CUDA smoke passed from optimizer step 0 to 2, and an explicit checkpoint resume passed from step 2 to 4. Both runs preserved frozen/unchanged GPT-2 parameters, exact Projector-only optimizer scope, finite updates, exact Adam step boundaries, and restored Projector trainability after evaluation.
 >
-> **Current phase boundary:** Phases 1, 2, 3A, 3B, and Phase 4A are complete. **Phase 4B is in progress**. Commit `1eadddd` contains the licensed-data trainer/evaluator and is present on Windows, GitHub, and the AutoDL working tree. The 8,192-sample dataset and all 32 frozen feature shards are complete and validated. The first two-step CUDA smoke proved finite updates, exact optimizer scope, frozen/unchanged GPT-2, checkpoint creation, and lower smoke NLL, but its final status was a known state-check false negative. The next blocking action is commit/sync the eval-state fix, rerun the fresh step-2 smoke, and explicitly resume it to step 4. No 1,344-step training result, held-out quality result, or Phase 4B completion claim exists yet.
+> **Current phase boundary:** Phases 1, 2, 3A, 3B, and Phase 4A are complete. **Phase 4B is in progress**. Commit `92cb004` is synchronized on Windows, GitHub, and AutoDL. The licensed 8,192-sample dataset, all 32 frozen feature shards, the trainer/evaluator, full Jittor tests, corrected fresh smoke, and explicit resume smoke are validated. The next blocking action is to record these results, then launch and monitor the fixed 1,344-optimizer-step training/evaluation in `tmux`. No full-training held-out result, caption-quality result, or Phase 4B completion claim exists yet.
 
 ## 1. Mandatory instructions for every future Codex agent
 
@@ -91,7 +91,7 @@ The user's low local RAM does not limit remote model loading. Avoid opening larg
 
 ## 3. Current live state
 
-Last remote resource verification was on 2026-08-03 after the first Phase 4B CUDA smoke. The AutoDL working tree is at `1eadddd` and reports `main...origin/main [ahead 1]` because its remote-tracking ref was not refreshed through the earlier Git Bundle fallback; GitHub already contains `1eadddd`. The RTX 4090 was idle with 0 MiB used and about 882 GiB RAM available. Generated artifacts remain intentionally untracked. The Windows working copy contains the uncommitted eval-state correction and focused regression test:
+Last remote resource verification was on 2026-08-03 after the corrected fresh and resume smokes. AutoDL is synchronized at `92cb004`; the correction was fetched directly from GitHub, so `main` and `origin/main` agree. The RTX 4090 returned to 0 MiB used after each smoke and approximately 882 GiB RAM was available before launch. Generated artifacts remain intentionally untracked:
 
 ```text
 Remote host: autodl-container-10894aa74d-da4e9cbe
@@ -173,9 +173,20 @@ First CUDA fresh smoke held-out NLL: 6.643716576688785 at step 0; 6.614728381051
 First CUDA fresh smoke checkpoint: checkpoints/projector_step_000002.npz
 First CUDA fresh smoke final status: exit code 1, passed=false, projector_all_trainable=false
 Diagnosed root cause: Jittor 1.3.11 projector.eval() marks all Projector parameters stop-grad; projector.train() restores them without changing parameter values
-Current Windows correction: restore projector.train() after final evaluation/generation before checking trainability; record projector_trainability_restored_after_evaluation
-Current Windows tests after correction: 57 tests OK with 15 environment-only skips
-Explicit resumed smoke, 1,344-step training, final held-out metrics, and evidence archive: not run yet
+Eval-state correction commit: 92cb004 fix: restore phase-four projector state after eval
+Correction behavior: restore projector.train() after final evaluation/generation before checking trainability; record projector_trainability_restored_after_evaluation
+Windows tests after correction: 57 tests OK with 15 environment-only skips
+AutoDL tests after correction: 57 tests OK with 8 environment-only skips; focused eval/train restoration test passed
+Corrected fresh smoke directory: outputs/phase4b/commoncatalog_cc_by_8k/smoke_fixed_92cb004
+Corrected fresh smoke result: exit code 0, passed=true, completed_training=false, steps 0 -> 2, optimizer_n_step=2
+Corrected fresh smoke invariants: language_unchanged=true, projector_optimizer_scope_exact=true, projector_all_trainable=true, all_updates_finite=true
+Corrected fresh smoke held-out NLL: 6.643716430983611 at step 0; 6.614728552631185 at step 2
+Corrected explicit resume directory: outputs/phase4b/commoncatalog_cc_by_8k/smoke_resume_92cb004
+Corrected explicit resume result: exit code 0, passed=true, completed_training=false, steps 2 -> 4, optimizer_n_step=4
+Corrected resume invariants: language_unchanged=true, projector_optimizer_scope_exact=true, projector_all_trainable=true, all_updates_finite=true
+Corrected resume held-out NLL: 6.6147287388124845 at loaded step 2; 6.532555884020771 at step 4
+The tiny difference between the fresh step-2 NLL and resumed initial step-2 NLL is within the declared CUDA numerical tolerance and does not alter discrete schedule/checkpoint acceptance
+1,344-step training, final held-out metrics, generation metrics, and evidence archive: not run yet
 ```
 
 The Phase 4A source/config/test implementation remains committed as `7a62be2`; synchronized Phase 4A handoff baseline is `212b81e`. Generated remote paths include:
@@ -892,14 +903,14 @@ Feature store: 32 expected NPZ shards of 256 samples, float32
 
 Exact next actions:
 
-1. Explicitly stage/commit/push the eval-state correction, focused Jittor regression test, and this handoff update; do not stage generated artifacts.
-2. Fast-forward AutoDL to the correction commit and run full Jittor test discovery, including the new `eval()` -> `train()` Projector trainability restoration test.
-3. Preserve the original failed smoke directories/logs. Rerun a fresh stop-at-step-2 smoke in a new output/log directory and require `passed=true`, `completed_training=false`, `final_optimizer_step=2`, `optimizer_n_step=2`, `language_unchanged=true`, and `projector_all_trainable=true`.
-4. Explicitly resume the corrected fresh step-2 checkpoint into another new directory and stop at step 4; require `start_optimizer_step=2`, `final_optimizer_step=4`, `optimizer_n_step=4`, `passed=true`, and `language_unchanged=true`.
-5. Only after both corrected smoke runs pass, launch the fixed 1,344-step training/evaluation in `tmux`; monitor the first evaluation/checkpoint before leaving it unattended.
-6. Validate held-out NLL/perplexity and the deterministic 128-sample single-BLIP-2-reference metrics, archive/hash evidence, update README/this handoff, and only then call Phase 4B complete.
+1. Commit/push/sync this handoff-only result update without staging generated artifacts.
+2. Launch the fixed 1,344-step training/evaluation in a new `tmux` session and new output/log directories; do not reuse or overwrite any smoke directory.
+3. Monitor the first training updates, the step-112 evaluation, and the step-112 checkpoint before leaving the job unattended. Require finite updates, `optimizer_n_step == optimizer_step`, frozen/unchanged GPT-2, and no unexpected process exit.
+4. After step 1,344 completes, verify `passed=true`, `completed_training=true`, final/best checkpoint identity, full evaluation history, deterministic 128-sample generation metrics, Projector-only optimization, and language SHA256 equality.
+5. Archive/hash the source commit, config, summaries, metrics JSONL, checkpoints required for evidence, and representative generated samples without placing generated artifacts in ordinary Git history.
+6. Update README, Phase 4B result documentation, and this handoff; only then call Phase 4B complete.
 
-Current claim boundary: the licensed real paired dataset and all frozen CLIP/VisionZip features are materialized and independently validated; the trainer/evaluator passes Windows and AutoDL tests; and the first two-step CUDA smoke executed valid training but ended in a diagnosed final-state-check false negative. Corrected smoke/resume, the full 1,344-step run, final held-out evaluation, improvement, and caption-quality claims do not exist yet.
+Current claim boundary: the licensed real paired dataset and all frozen CLIP/VisionZip features are materialized and independently validated; the trainer/evaluator passes Windows and AutoDL tests; corrected fresh and explicit-resume CUDA smokes both pass. The full 1,344-step run, final held-out evaluation, improvement, generation metrics, and caption-quality claims do not exist yet.
 
 ## 12. Network and recovery notes
 
@@ -947,5 +958,7 @@ Use the environment settings in section 4.3. Do not repeatedly delete the workin
 | 2026-08-03 | `3c8a3f1` synchronized plus uncommitted Windows Phase 4B trainer/evaluator slice | Implemented single-allocation exact-order feature loading, deterministic optimizer-step batches, target-token-weighted gradient accumulation with Jittor Adam `n_step` correction, warmup/cosine LR, Phase 4B checkpoint/resume identity, rolling/best/final retention, held-out NLL/perplexity, deterministic single-reference BLEU/ROUGE generation evaluation, and intentional stop-at-step support. All 56 Windows tests pass with 14 environment-only skips. No AutoDL test or training result exists yet. | Explicitly commit/push/sync source and handoff files, run AutoDL Jittor tests, then perform a fresh step-2 and resumed step-4 CUDA smoke before the 1,344-step run. |
 
 | 2026-08-03 | `1eadddd` synchronized plus uncommitted Windows eval-state correction | AutoDL passed all 56 tests with 8 skips and completed two finite CUDA optimizer updates with exact Projector-only scope, unchanged GPT-2, `optimizer_n_step=2`, a step-2 checkpoint, and held-out NLL moving from `6.643716576688785` to `6.614728381051471`. The process then exited 1 only because Jittor 1.3.11 `projector.eval()` set Projector parameters stop-grad before the final trainability check. A Windows fix now calls `projector.train()` before the invariant, records the restoration, adds a focused Jittor test, and all 57 Windows tests pass with 15 skips. | Commit/push/sync the fix, run AutoDL tests, then rerun fresh step 2 and explicit resume step 2 -> 4 in new directories while preserving the failed smoke history. |
+
+| 2026-08-03 | `92cb004` synchronized; corrected smoke/resume artifacts untracked | Added post-evaluation `projector.train()` restoration and a focused Jittor regression test. All 57 tests pass on Windows (15 skips) and AutoDL (8 skips). Corrected fresh smoke passed steps 0 -> 2 with `optimizer_n_step=2`, unchanged frozen GPT-2, exact optimizer scope, trainable Projector, finite updates, and NLL `6.643716430983611 -> 6.614728552631185`. Explicit resume passed steps 2 -> 4 with `optimizer_n_step=4` and NLL `6.6147287388124845 -> 6.532555884020771`. Original failed smoke history remains preserved. | Commit/sync this result record, then launch the fixed 1,344-step run in a new tmux/output/log namespace and monitor through the first step-112 evaluation/checkpoint. |
 
 When adding a new row, keep older rows. The newest row should state the exact commit or dirty-worktree state, the verified result, and the next blocking action.
