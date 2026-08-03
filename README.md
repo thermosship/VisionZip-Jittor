@@ -2,7 +2,7 @@
 
 使用 **Jittor 原生张量算子**复现 VisionZip 的视觉 Token 压缩核心，并建立可重复的 PyTorch/Jittor 数值对齐流程。
 
-> Current status: **Phases 1, 2, 3A, 3B, 4A, and 4B are complete; Phase 5A is in progress.** Native Jittor GPT-2 KV-cache generation is implemented. The preserved v1 clean formal run from `6d3ba71` kept exact greedy IDs for all 9/9 samples and every cache/model invariant but failed its original raw-logit gate; acceptance v2 also remained a preserved failed dirty smoke because coordinatewise probability allclose was too path-sensitive. Acceptance v3 now uses exact IDs, exact cache structure, and a frozen per-step total-variation bound of `5e-5`. Its complete 9-sample dirty smoke passed 9/9 with global maximum TV `3.688904192621437e-05`; clean-commit tests, the formal 3-warmup/10-run benchmark, and the evidence archive remain pending.
+> Current status: **Phases 1, 2, 3A, 3B, 4A, and 4B are complete; Phase 5A formal acceptance has passed and evidence finalization is in progress.** Native Jittor GPT-2 KV-cache generation passed the clean-commit acceptance-v3 protocol at `7227717`: exact greedy IDs, exact cache contracts, and the frozen per-step total-variation bound passed all 9/9 budget/sample cases; GPT-2 and Projector remained frozen and hash-unchanged. The global maximum TV was `3.505422367609121e-05` under the frozen `5e-5` bound. Final documentation and a cross-host verified evidence archive remain before Phase 5A is marked complete.
 
 ## 1. 项目目标
 
@@ -382,27 +382,39 @@ After 67 warm-up updates, steps 68-1,344 averaged `120.37183717184918 ms` per op
 The deterministic 128-sample generated-caption subset recorded BLEU-1 `0.28304947283049475`, add-one-smoothed BLEU-4 `0.05727683512769526`, and ROUGE-L `0.26176086973563917`. These use one BLIP-2 synthetic reference per image, are not directly comparable with multi-reference COCO metrics, and do not establish high-quality captioning. Full details are in [`docs/PHASE4B_REAL_PAIRED_TRAINING.md`](docs/PHASE4B_REAL_PAIRED_TRAINING.md). Final evidence archive: `VisionZip-Jittor-phase4b-evidence-final-v2-20260803.tar.gz`, SHA256 `2EFEEAA88F18AB11B8431A7DD810B296366073D14B5717D02C72152DBA70C032` (45 files). AutoDL and Windows hashes match; the earlier `VisionZip-Jittor-phase4b-evidence-20260803.tar.gz` remains preserved.
 
 
-### 8.13 Phase 5A native Jittor GPT-2 KV-cache generation (in progress)
+### 8.13 Phase 5A native Jittor GPT-2 KV-cache generation (formal acceptance passed)
 
 Phase 5A adds a per-layer GPT-2 key/value cache with shape `[batch, heads, cached_tokens, head_dim]`, past-aware position IDs and causal masks, cache validation, and greedy generation from packed multimodal embeddings. The original full-recompute path remains the correctness oracle.
 
-The first clean formal run used synchronized commit `6d3ba713476b054f9cf9ea374144de538b2ec601`, all three budgets, all three samples, 32 generated tokens, 3 warmups, and 10 measured runs. It passed exact greedy token IDs for all 9/9 samples, exact cache structure, GPT-2/Projector frozen and hash-unchanged checks, and all artifact provenance checks. It remained top-level `passed: false` because its original acceptance v1 required every raw logit vector to satisfy strict `atol=rtol=1e-5`; budget 64 sample 1 and all budget 192 samples had strict failed steps. The global raw-logit maximum absolute error was `0.0028228759765625`.
+The preserved acceptance-v1 clean run at `6d3ba71` kept exact greedy IDs for all 9/9 samples and every cache/model invariant but failed its original raw-logit `allclose(1e-5, 1e-5)` gate. Acceptance v2 also remains a preserved failed dirty smoke because coordinatewise softmax allclose failed in 6/9 samples. PyTorch 2.1.2 CUDA reproduced the same class of shape-dependent FP32 drift while preserving exact IDs, so neither failed result was deleted or retroactively relabeled.
 
-A layerwise diagnosis showed shape-dependent CUDA FP32 rounding between one-token cached decode and full-prefix recomputation. Hugging Face PyTorch GPT-2 `2.1.2+cu118` on the same RTX 4090 reproduced exact token IDs but failed strict raw-logit `1e-5` on 7 steps, with maximum error `0.001659393310546875`. For a representative Jittor failed step, the raw-logit maximum error was `5.531311035156e-04`, centered-logit maximum error was `9.297727791235e-05`, and softmax-probability maximum error was only `2.430344259174e-09` with probability allclose at `1e-5`.
+Acceptance v3 freezes the semantic gate before the formal retry: exact greedy token IDs, exact cache layer/shape/final-length checks, and per-step stable-softmax total variation no greater than `5e-5`. Raw logits, centered logits, and coordinatewise softmax allclose remain recorded as `diagnostic_only`. GPT-2 and Projector provenance, stop-grad, and SHA256 invariants remain mandatory. Speedup is reported, not required.
 
-Acceptance v2 is preserved as a failed dirty smoke: all 9/9 IDs and cache/model invariants were exact, but coordinatewise stable-softmax `allclose(1e-5, 1e-5)` failed in 6/9 samples. Its largest coordinate error was `2.7548452180448102e-05`, while the reconstructed global maximum total variation was `3.428262002090551e-05`. A matching PyTorch CUDA distribution diagnostic kept exact IDs and measured maximum TV `1.4558119111568148e-05`.
+The clean formal run used synchronized commit `72277174069b9cef63831529f3ef2e3e16965cd1`, all three budgets, all three samples, 32 generated tokens, 3 warmups, and 10 measured runs. It recorded:
 
-Acceptance v3 is explicit and frozen before the clean formal retry. Raw logits, centered logits, and coordinatewise probability allclose remain visible `diagnostic_only` fields. Correctness requires exact greedy IDs, exact cache layer/shape/final-length checks, and per-step stable-softmax total variation no greater than `5e-5`; GPT-2 and Projector provenance, stop-grad, and hashes remain mandatory. The complete reduced-timing dirty smoke passed all 9/9 samples with exact IDs and cache contracts, `invariants_passed: true`, top-level `passed: true`, and global maximum TV `3.688904192621437e-05`. The first wrapper attempt failed before execution because its temporary config was not created; that log is retained separately, and the successful retry uses the `acceptance_v3_dirty_smoke_retry1.*` namespace. This dirty-tree result validates the contract but is not the final formal benchmark.
+```text
+tracked source tree clean:        true
+exact greedy token sequences:    9 / 9
+exact cache contracts:           9 / 9
+TV within frozen 5e-5 bound:     9 / 9
+global maximum TV:               3.505422367609121e-05
+GPT-2 frozen/hash unchanged:     true / true
+Projector frozen/hash unchanged: true / true
+invariants_passed:               true
+top-level passed:                true
+```
 
-First formal-run performance observations:
+Formal acceptance-v3 performance on the pinned RTX 4090/Jittor 1.3.11.0 environment:
 
-| Budget | Cached prefill | Cached decode-only | Cached total | Uncached total | Speedup | Peak GPU memory |
+| Budget | Cached prefill | Cached decode-only | Cached total | Uncached total | Speedup | Peak process GPU memory |
 |---:|---:|---:|---:|---:|---:|---:|
-| 64 | `3.1244 ms` | `223.5922 ms` | `229.8020 ms` | `243.0066 ms` | `1.05746x` | `1168 MiB` |
-| 128 | `3.4648 ms` | `222.9952 ms` | `233.2325 ms` | `253.9463 ms` | `1.08881x` | `1250 MiB` |
-| 192 | `3.8959 ms` | `222.1121 ms` | `230.9646 ms` | `294.1048 ms` | `1.27338x` | `1322 MiB` |
+| 64 | `3.2958 ms` | `235.2201 ms` | `240.8540 ms` | `243.3399 ms` | `1.01032x` | `1168 MiB` |
+| 128 | `3.3615 ms` | `236.9930 ms` | `241.4139 ms` | `255.4643 ms` | `1.05820x` | `1250 MiB` |
+| 192 | `3.7474 ms` | `231.5706 ms` | `241.0673 ms` | `290.8731 ms` | `1.20661x` | `1322 MiB` |
 
-Speedup is reported but is not a pass/fail requirement. Phase 5A validates generation decisions, cache behavior, probability-level alignment, and runtime measurements; it does **not** claim raw-logit bitwise/strict-`1e-5` equality or improved caption quality. Full protocol, failure analysis, and claim boundaries are in [`docs/PHASE5A_KV_CACHE_PLAN.md`](docs/PHASE5A_KV_CACHE_PLAN.md).
+The formal diagnostics intentionally still show that raw-logit allclose passed only 5/9 samples, centered-logit allclose passed 0/9, and coordinatewise probability allclose passed 4/9. Their global maxima were `0.00316619873046875`, `0.0005196525940505126`, and `2.736421851434745e-05`, respectively. These diagnostic failures do not override exact generation decisions, exact cache semantics, or the frozen distribution-level gate.
+
+Phase 5A validates generation decisions, cache behavior, distribution-level alignment, and runtime measurements; it does **not** claim raw-logit bitwise/strict-`1e-5` equality, improved caption quality, or universal speedup. Full protocol, preserved failures, diagnosis, and claim boundaries are in [`docs/PHASE5A_KV_CACHE_PLAN.md`](docs/PHASE5A_KV_CACHE_PLAN.md).
 
 ## 9. 项目结构
 
@@ -471,14 +483,15 @@ VisionZip-Jittor/
 - [x] Pass the reduced real-artifact Phase 5A runner smoke and full 63-test AutoDL discovery;
 - [x] Commit/synchronize Phase 5A v1 and preserve the first clean formal benchmark plus numerical diagnostics;
 - [x] Implement and validate acceptance v3 with a passing 9-sample dirty smoke under a new namespace;
-- [ ] Commit/synchronize acceptance v3, rerun the full clean protocol under a commit-specific namespace, publish final results, and verify the evidence archive.
+- [x] Commit/synchronize acceptance v3 and pass clean-commit tests plus the full 64/128/192 formal protocol;
+- [ ] Build and cross-host verify the Phase 5A evidence archive, record its SHA256, and mark the phase complete.
 
 ## 11. Next steps
 
-1. Review and explicitly stage the acceptance-v3 metric/config/runner/test/document files; never use `git add .` or `git add -A`.
-2. Commit, push, fast-forward AutoDL, and run the full test suite from the new clean commit.
-3. Run the acceptance-v3 formal benchmark under `tmux` with 3 warmups and 10 measured runs in a commit-specific namespace without overwriting any v1/v2/dirty-smoke files.
-4. Audit all 64/128/192 sample results, update the final Phase 5A values, then build and cross-host verify a versioned evidence archive.
+1. Update the final Phase 5A result documentation and authoritative handoff with commit `7227717` measurements.
+2. Build a versioned Phase 5A evidence archive containing the formal JSON/log/metadata, clean-test evidence, preserved v1/v2/v3 failure and diagnosis logs, reviewed source/config/tests/docs, and an internal `SHA256SUMS`.
+3. Verify the archive and internal checksums on AutoDL, copy it to Windows, and confirm AutoDL/Windows SHA256 equality.
+4. Record the verified archive filename/hash, commit/push/synchronize the completion documentation, and only then mark Phase 5A complete or begin Phase 5B.
 5. Preserve the Phase 4B single-reference quality boundary: Phase 5A is a generation-correctness and performance phase, not a caption-quality claim.
 
 ## 12. 许可证与声明

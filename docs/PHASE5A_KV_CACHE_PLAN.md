@@ -182,7 +182,45 @@ Development validation also includes 11 focused Phase 5A metric tests and full W
 
 This result validates the acceptance-v3 implementation but is not formal evidence because the tracked worktree was dirty and timing used zero warmups plus one measured run. A new clean commit, clean-commit tests, and the full 3-warmup/10-measured-run benchmark remain required.
 
-## 9. Claim boundary
+## 9. Clean-commit formal acceptance-v3 result
+
+The formal acceptance-v3 run completed from synchronized commit `72277174069b9cef63831529f3ef2e3e16965cd1` on 2026-08-03. Both tracked-status snapshots were empty, the process exited `0`, and the checked-in v3 configuration was used without reduced timing:
+
+```text
+budgets / samples:                 64, 128, 192 / 0, 1, 2
+new tokens:                       32
+warmups / measured runs:          3 / 10
+exact greedy token sequences:     9 / 9
+exact cache contracts:            9 / 9
+TV within frozen 5e-5 bound:      9 / 9
+global maximum TV:                3.505422367609121e-05
+GPT-2 stop-grad / unchanged:      true / true
+Projector stop-grad / unchanged:  true / true
+invariants_passed:                true
+top-level passed:                 true
+```
+
+The formal diagnostic-only counts were raw-logit allclose 5/9, centered-logit allclose 0/9, and coordinatewise softmax-probability allclose 4/9. Global diagnostic maxima were:
+
+```text
+raw logits max absolute error:          0.00316619873046875
+centered logits max absolute error:     0.0005196525940505126
+probability coordinate max abs error:   2.736421851434745e-05
+```
+
+These are disclosed rather than hidden, but they do not control acceptance v3. Every sample kept exact generated token IDs, exact cache semantics, and TV below the threshold frozen before the clean run.
+
+Performance and process-memory observations:
+
+| Budget | Cached prefill mean | Cached decode-only mean | Cached total mean | Uncached total mean | Uncached/cached speedup | Peak process GPU memory |
+|---:|---:|---:|---:|---:|---:|---:|
+| 64 | 3.2958151152 ms | 235.2200911691 ms | 240.8540353179 ms | 243.3398880064 ms | 1.0103209925x | 1168 MiB |
+| 128 | 3.3614758402 ms | 236.9929999113 ms | 241.4139414827 ms | 255.4643270870 ms | 1.0582003902x | 1250 MiB |
+| 192 | 3.7473919491 ms | 231.5705807259 ms | 241.0673434536 ms | 290.8731463055 ms | 1.2066053499x | 1322 MiB |
+
+The clean synchronized AutoDL source also passed full unittest discovery: `74` tests with `8` environment-only skips. Formal result files use `logs/phase5a/kv_cache_benchmark_7227717.*`; earlier v1/v2/v3 dirty and failed namespaces remain preserved.
+
+## 10. Claim boundary
 
 Phase 5A may establish exact greedy decisions, exact cache-contract behavior, probability-level cached/full-recompute alignment, and reproducible latency/throughput/memory measurements for the pinned RTX 4090 environment.
 
@@ -197,7 +235,7 @@ It must disclose the strict raw-logit diagnostics and the matching PyTorch CUDA 
 
 The Phase 4B quality boundary remains unchanged: its single BLIP-2 synthetic reference metrics are not directly comparable with multi-reference COCO numbers.
 
-## 10. Completion checklist
+## 11. Completion checklist
 
 - [x] Implement per-layer native Jittor GPT-2 KV cache.
 - [x] Preserve and test the uncached execution path.
@@ -210,13 +248,14 @@ The Phase 4B quality boundary remains unchanged: its single BLIP-2 synthetic ref
 - [x] Diagnose all v2 failures, compute the complete Jittor total-variation envelope, and add a matching PyTorch distribution diagnostic.
 - [x] Implement acceptance-v3 total-variation reports and focused pure-NumPy tests in the current development tree.
 - [x] Pass the acceptance-v3 9-sample dirty smoke under a new namespace.
-- [ ] Commit and synchronize acceptance v3.
-- [ ] Run all tests from the new clean synchronized commit on AutoDL.
-- [ ] Run the acceptance-v3 formal protocol in a new commit-specific `tmux` namespace.
-- [ ] Audit the final JSON/logs, source commit, environment, and hashes.
+- [x] Commit and synchronize acceptance v3 at `7227717`.
+- [x] Run all tests from the new clean synchronized commit on AutoDL: 74 tests, 8 skips.
+- [x] Run the acceptance-v3 formal protocol in `tmux` under `kv_cache_benchmark_7227717.*`.
+- [x] Audit all 9 sample reports, source/tracked status, model invariants, timings, memory, and provenance fields.
 - [ ] Build the Phase 5A evidence archive and verify matching AutoDL/Windows SHA256 values.
-- [ ] Update this document and README with the passing retry and final archive hash.
+- [x] Update this document and README with the passing formal result.
+- [ ] Record the final archive filename/hash and mark Phase 5A complete.
 
-## 11. Immediate next action
+## 12. Immediate next action
 
-Run final Windows tests/static checks, explicitly stage only the reviewed acceptance-v3 source/config/test/document files, commit and synchronize the new source baseline, and then run clean-commit AutoDL tests. The formal retry must use a new commit-specific `logs/phase5a/kv_cache_benchmark_<short-commit>.*` namespace with 3 warmups and 10 measured runs, and it must preserve every v1/v2/dirty-smoke failure and diagnosis file.
+Commit and synchronize the final result documentation, then build the Phase 5A evidence archive with internal `SHA256SUMS`. Include the clean-test and formal `kv_cache_benchmark_7227717.*` evidence plus the preserved v1/v2/v3 failures and diagnostics, but exclude large model weights, CLIP reference NPZ files, checkpoints, and other generated artifacts that are already identified by hashes in the report. Verify internal checksums on AutoDL, copy the archive to Windows, verify the outer SHA256 on both hosts, record it here/README/AGENTS.md, and only then mark Phase 5A complete.

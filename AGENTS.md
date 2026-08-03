@@ -1136,6 +1136,7 @@ The project currently proves:
 - complete Projector/Adam checkpoint serialization and validated resume;
 - numerical next-step replay within the declared `1e-5` CUDA tolerance;
 - runner-measured post-warm-up training throughput, sampled process peak GPU memory, and cross-host evidence integrity.
+- clean-commit native Jittor GPT-2 KV-cache generation with exact 9/9 greedy sequences, exact cache contracts, and a frozen per-step TV distribution gate.
 
 It does **not** yet prove:
 
@@ -1146,26 +1147,45 @@ It does **not** yet prove:
 - bitwise deterministic CUDA resume;
 - production prefill or training speedup;
 - stable backward latency;
-- KV-cache generation;
 - mixed-precision correctness;
 - a larger frozen LLM integration.
 
 The fresh Phase 4A validation loss increased from `7.54148` to `7.75218`, and the generated validation text was poor. Retain both facts in future reports. They do not invalidate the infrastructure acceptance result, but they prohibit any visual-language quality claim.
 
-## 11. Next exact actions -- PHASE 5A ACCEPTANCE-V2 RETRY
+## 11. Next exact actions -- PHASE 5A EVIDENCE FINALIZATION
 
-The first clean formal run from `6d3ba71` is complete and intentionally remains a failed result. Its exact token/cache/model invariants and the matching PyTorch CUDA diagnosis justify a versioned acceptance redesign, not deletion or retrospective relabeling.
+Acceptance-v3 source commit `72277174069b9cef63831529f3ef2e3e16965cd1` is synchronized on Windows, GitHub, and AutoDL. Clean AutoDL discovery passed 74 tests with 8 skips. The full 64/128/192 x 3-sample formal benchmark ran with 32 new tokens, 3 warmups, and 10 measured runs from an empty tracked diff and recorded top-level `passed=true`.
+
+Formal correctness envelope:
+
+```text
+exact greedy token sequences: 9 / 9
+exact cache contracts:        9 / 9
+TV within frozen 5e-5 bound:  9 / 9
+global maximum TV:            3.505422367609121e-05
+GPT-2 frozen/unchanged:       true / true
+Projector frozen/unchanged:   true / true
+invariants_passed:            true
+```
+
+Formal performance:
+
+| Budget | Prefill | Decode-only | Cached total | Uncached total | Speedup | Peak GPU |
+|---:|---:|---:|---:|---:|---:|---:|
+| 64 | 3.2958 ms | 235.2201 ms | 240.8540 ms | 243.3399 ms | 1.01032x | 1168 MiB |
+| 128 | 3.3615 ms | 236.9930 ms | 241.4139 ms | 255.4643 ms | 1.05820x | 1250 MiB |
+| 192 | 3.7474 ms | 231.5706 ms | 241.0673 ms | 290.8731 ms | 1.20661x | 1322 MiB |
 
 Exact next actions:
 
-1. Keep `logs/phase5a/kv_cache_benchmark_6d3ba71.*`, `acceptance_v2_dirty_smoke.*`, the failed `acceptance_v3_dirty_smoke.*` wrapper namespace, the passing `acceptance_v3_dirty_smoke_retry1.*` namespace, and all diagnosis/test-retry logs unchanged.
-2. Run final Windows tests, `py_compile`, and `git diff --check` for the acceptance-v3 implementation and documentation.
-3. Review and explicitly stage only `AGENTS.md`, `README.md`, `configs/phase5a_kv_cache.json`, `docs/PHASE5A_KV_CACHE_PLAN.md`, `scripts/run_phase5a_kv_cache.py`, `tests/test_phase5a_metrics.py`, and `visionzip_jittor/phase5a_metrics.py`; never use `git add .` or `git add -A`.
-4. Commit/push/synchronize acceptance v3, then run all tests from the clean synchronized AutoDL commit.
-5. Launch the full 3-warmup/10-measured-run benchmark in `tmux` under a new commit-specific `kv_cache_benchmark_<new-short-sha>.*` namespace.
-6. Audit all 9 samples and all model/provenance/timing/memory fields. Only after a passing clean retry may final docs and the Phase 5A evidence archive be produced.
+1. Preserve all v1/v2/v3 dirty/failure/diagnosis/test-retry logs and the formal `kv_cache_benchmark_7227717.*` namespace.
+2. Commit/push/synchronize the formal-result documentation changes.
+3. Build a versioned Phase 5A evidence archive with internal `SHA256SUMS`; include reviewed source/config/tests/docs, clean-test logs, formal logs/JSON/metadata, and preserved numerical diagnosis/failure logs. Exclude model weights, CLIP reference NPZs, checkpoints, tokenizer artifacts, and datasets; their identities are already hashed in the formal JSON.
+4. Verify the archive internally on AutoDL, copy it to Windows, and verify the outer SHA256 on both hosts.
+5. Record the archive filename, entry count, and matching SHA256 in README, `docs/PHASE5A_KV_CACHE_PLAN.md`, and this handoff; commit/push/synchronize the completion state.
+6. Only then mark Phase 5A complete or begin Phase 5B.
 
-Current claim boundary: Phase 5A may prove exact greedy decisions, cache-contract correctness, probability-level numerical alignment, and report runtime/memory measurements. It must disclose raw-logit drift and the PyTorch CUDA baseline. It does not prove raw-logit bitwise equality, universal strict-`1e-5` raw-logit equality, caption-quality improvement, state-of-the-art inference speed, or generalization.
+Current claim boundary: Phase 5A proves exact greedy decisions and cache-contract correctness for the pinned real GPT-2/Projector/Phase-2-reference protocol, distribution-level alignment under the frozen `5e-5` TV gate, and reports pinned-device runtime/memory measurements. It discloses raw/centered/coordinatewise drift and the PyTorch CUDA baseline. It does not prove raw-logit bitwise equality, universal strict-`1e-5` raw-logit equality, caption-quality improvement, state-of-the-art inference speed, universal speedup, or generalization.
 
 ## 12. Network and recovery notes
 
@@ -1232,5 +1252,7 @@ Use the environment settings in section 4.3. Do not repeatedly delete the workin
 | 2026-08-03 | `6d3ba71` baseline; acceptance-v2 source/config/docs dirty on Windows and AutoDL | The preserved 9-sample acceptance-v2 dirty smoke completed with `invariants_passed=true` but `passed=false`. All 9/9 token sequences and cache contracts remained exact. Coordinatewise stable-softmax `allclose(1e-5,1e-5)` failed in 6/9 samples, with probability max absolute error `2.7548452180448102e-05`; reconstructing total variation from the saved per-step reports gave a global maximum `3.428262002090551e-05`. A new PyTorch 2.1.2 CUDA diagnostic on budget 192/sample 1 also kept exact IDs, reproduced raw drift (`0.001659393310546875`), and measured max total variation `1.4558119111568148e-05`. This shows the v2 coordinatewise gate is still overly path-sensitive rather than a cache-semantic failure. | Preserve `acceptance_v2_dirty_smoke.*` and both PyTorch logs; implement acceptance-v3 with coordinatewise probability allclose retained as a diagnostic and a versioned per-step total-variation bound plus exact IDs/cache as the gate, add tests/docs, and rerun under a new namespace before committing. |
 
 | 2026-08-03 | `6d3ba71` baseline; acceptance-v3 source/config/tests/docs dirty on Windows and AutoDL | Acceptance-v3 development validation is complete. The first `acceptance_v3_dirty_smoke.*` wrapper failed before model execution because its temporary JSON was not created; that namespace is preserved. Corrected `acceptance_v3_dirty_smoke_retry1.*` passed all 9/9 samples with exact greedy IDs, exact cache contracts, `invariants_passed=true`, top-level `passed=true`, and global maximum per-step total variation `3.688904192621437e-05` under the frozen `5e-5` bound. Coordinatewise diagnostics still failed as expected and remain diagnostic-only. AutoDL full retry 2 passed 74 tests with 8 skips after preserving the CRLF wrapper failure, intermittent Jittor segfault, and isolated 2/2 retry. | Finish Windows/static checks, explicitly stage the seven reviewed acceptance-v3 files, commit/push/sync, run clean-commit AutoDL tests, then launch the formal 3-warmup/10-run benchmark in a new commit-specific `tmux` namespace. |
+
+| 2026-08-03 | `7227717` synchronized on Windows/GitHub/AutoDL; tracked AutoDL source clean | Acceptance-v3 clean validation passed. AutoDL full discovery: 74 tests, 8 skips, exit 0. Formal `kv_cache_benchmark_7227717.*` used 64/128/192 x samples 0/1/2, 32 tokens, 3 warmups, 10 measured runs; all 9/9 exact IDs/cache/TV gates passed, global max TV `3.505422367609121e-05`, GPT-2 and Projector were frozen/hash-unchanged, `invariants_passed=true`, top-level `passed=true`. Mean cached/uncached totals and speedups were 240.8540/243.3399 ms (1.01032x), 241.4139/255.4643 ms (1.05820x), and 241.0673/290.8731 ms (1.20661x); peak process GPU memory was 1168/1250/1322 MiB. | Commit/sync final-result docs, create an internally hashed Phase 5A evidence archive, copy it to Windows, verify matching outer SHA256, record completion, and only then begin the next phase. |
 
 When adding a new row, keep older rows. The newest row should state the exact commit or dirty-worktree state, the verified result, and the next blocking action.
