@@ -94,6 +94,9 @@ def source_row_rejection(
     source_page_url = str(row.get("pageurl") or "")
     if not source_page_url.startswith(("http://", "https://")):
         return "source_page"
+    source_hash = str(row.get("sha256") or "").lower()
+    if not re.fullmatch(r"[0-9a-f]{64}", source_hash):
+        return "source_sha256_format"
     return None
 
 
@@ -159,8 +162,6 @@ class Phase4BPreparedSample:
             value = getattr(self, name)
             if not re.fullmatch(r"[0-9a-f]{64}", value):
                 raise ValueError(f"prepared {name} must be lowercase SHA256")
-        if self.image_sha256 != self.source_image_sha256:
-            raise ValueError("prepared image and source SHA256 values must match")
         if not self.caption.strip():
             raise ValueError("prepared caption must not be empty")
         if self.source_row < 0:

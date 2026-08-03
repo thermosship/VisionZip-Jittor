@@ -14,6 +14,7 @@ from visionzip_jittor.phase4b_data import (
     load_prepared_dataset,
     normalize_caption,
     preflight_report,
+    prepared_sample_from_row,
     source_image_bytes,
     source_row_rejection,
     source_sample_id,
@@ -85,11 +86,12 @@ class Phase4BPreparationTests(unittest.TestCase):
             "unickname": "Example Creator",
             "title": "Bird",
             "pageurl": "https://www.flickr.com/photos/example/123/",
-            "sha256": hashlib.sha256(b"jpeg bytes").hexdigest(),
+            "sha256": hashlib.sha256(b"upstream source bytes").hexdigest(),
         }
 
     def sample(self, index):
         digest = hashlib.sha256(f"image-{index}".encode("utf-8")).hexdigest()
+        source_digest = hashlib.sha256(f"source-{index}".encode("utf-8")).hexdigest()
         return Phase4BPreparedSample(
             sample_id=f"sample-{index}",
             split="train",
@@ -100,7 +102,7 @@ class Phase4BPreparationTests(unittest.TestCase):
             source_row=index,
             source_photo_id=str(index),
             source_uid=f"user-{index}",
-            source_image_sha256=digest,
+            source_image_sha256=source_digest,
             creator_name=f"creator {index}",
             title=f"title {index}",
             source_page_url=f"https://example.com/image/{index}",
@@ -121,6 +123,19 @@ class Phase4BPreparationTests(unittest.TestCase):
             source_sample_id(self.good_row),
             "ccby-" + self.good_row["sha256"][:24],
         )
+        embedded_hash = hashlib.sha256(b"jpeg bytes").hexdigest()
+        prepared = prepared_sample_from_row(
+            row=self.good_row,
+            config=self.config,
+            source_shard="source.parquet",
+            source_row=0,
+            image_path="images/example.jpg",
+            image_sha256=embedded_hash,
+        )
+        prepared.validate()
+        self.assertEqual(prepared.image_sha256, embedded_hash)
+        self.assertEqual(prepared.source_image_sha256, self.good_row["sha256"])
+        self.assertNotEqual(prepared.image_sha256, prepared.source_image_sha256)
         bad = dict(self.good_row, licenseurl="https://example.com/license")
         self.assertEqual(source_row_rejection(bad, self.config), "license")
 
@@ -135,6 +150,10 @@ class Phase4BPreparationTests(unittest.TestCase):
         self.assertEqual(
             source_row_rejection(dict(self.good_row, licensename=""), self.config),
             "license_name",
+        )
+        self.assertEqual(
+            source_row_rejection(dict(self.good_row, sha256="not-a-digest"), self.config),
+            "source_sha256_format",
         )
 
     def test_exact_split_is_deterministic_and_preserves_order(self):

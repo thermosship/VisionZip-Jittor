@@ -230,9 +230,6 @@ def main() -> None:
                     rejection_counts["image_decode"] += 1
                     continue
                 image_hash = hashlib.sha256(image_bytes).hexdigest()
-                if source_hash_value and image_hash != source_hash_value:
-                    rejection_counts["source_sha256"] += 1
-                    continue
                 if decoded_width != int(row["width"]) or decoded_height != int(row["height"]):
                     rejection_counts["dimension_metadata"] += 1
                     continue

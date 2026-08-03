@@ -377,7 +377,7 @@ The checked-in infrastructure currently provides:
 
 - strict versioned configuration and source-object metadata;
 - a default no-download storage preflight with about 8.39 GiB estimated headroom-inclusive demand;
-- explicit `--execute` materialization with image decoding, source SHA256 checks, caption/status/license filters, duplicate rejection, and row-level creator/page/license attribution;
+- explicit `--execute` materialization with image decoding, separate source-record and embedded-JPEG SHA256 provenance, caption/status/license filters, duplicate rejection, and row-level creator/page/license attribution;
 - hashed `samples.jsonl` and prepared-dataset manifest validation;
 - frozen real CLIP/VisionZip feature precompute at nominal budget 64 (`65 x 1024` including CLS);
 - 256-sample NPZ feature shards, expected to produce 32 shards, with sample-order and SHA256 verification plus safe reuse after interruption;

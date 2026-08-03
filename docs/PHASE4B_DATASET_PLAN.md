@@ -96,8 +96,10 @@ Rows are accepted only when all of the following hold:
 5. row-level license URL is in the CC BY family allowed above;
 6. embedded image decodes as JPEG;
 7. decoded dimensions match metadata;
-8. embedded-byte SHA256 matches the row `sha256`;
-9. image/sample SHA256 has not already been accepted.
+8. row `sha256` is a valid lowercase digest and has not already been accepted;
+9. the materialized embedded JPEG receives its own independently computed SHA256.
+
+CommonCatalog's row `sha256` and the SHA256 of the embedded Parquet JPEG are intentionally stored separately. The row digest is upstream source identity/provenance; the embedded image is a processed JPEG and therefore need not be byte-identical. Integrity verification uses the independently computed `image_sha256` for the materialized JPEG while retaining `source_image_sha256` for source deduplication and attribution provenance.
 
 The accepted sequence follows pinned shard order and source-row order. The held-out set is then selected by ranking `SHA256("2026:" + sample_id)` and taking exactly 1,024 samples. This gives an exact, deterministic held-out count while preserving the original accepted order in the manifest.
 
