@@ -6,13 +6,19 @@
 source /root/autodl-tmp/VisionZip-Jittor/environment/activate_jittor.sh
 ```
 
-脚本会激活：
+脚本默认激活：
 
 ```text
 /root/autodl-tmp/envs/visionzip-jittor
 ```
 
-并进入项目目录。
+项目目录由 `environment/activate_jittor.sh` 自身位置推导，因此临时 clone/worktree 不会跳回主仓库。独立环境验证可在调用前设置：
+
+```bash
+export VISIONZIP_JITTOR_ENV=/root/autodl-tmp/envs/visionzip-readme-clean
+export VISIONZIP_CACHE_ROOT=/root/autodl-tmp/cache
+source environment/activate_jittor.sh
+```
 
 ## 保存环境证据
 

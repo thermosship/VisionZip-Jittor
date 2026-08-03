@@ -157,6 +157,16 @@ python -m pip install -r requirements/phase3b_jittor.txt
 python -m pip install -r requirements/dev.txt
 ```
 
+激活脚本默认使用 `/root/autodl-tmp/envs/visionzip-jittor`，但会根据脚本自身位置进入对应 checkout。需要做独立环境验证时可覆盖环境和缓存目录：
+
+```bash
+export VISIONZIP_JITTOR_ENV=/root/autodl-tmp/envs/visionzip-readme-clean
+export VISIONZIP_CACHE_ROOT=/root/autodl-tmp/cache
+source environment/activate_jittor.sh
+```
+
+因此从临时 clone/worktree 调用脚本时，不会跳回主工作区。
+
 数据准备依赖安装在 PyTorch/下载环境：
 
 ```bash
