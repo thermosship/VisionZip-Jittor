@@ -51,3 +51,7 @@ runs/
 
 # Local environment captures
 environment/generated/
+
+# Phase 4 local paired-training artifacts
+outputs/phase4a/
+logs/phase4a*

@@ -1,0 +1,20 @@
+{
+  "model_name_or_path": "openai-community/gpt2",
+  "budget": 64,
+  "projector_type": "mlp2x_gelu",
+  "vision_hidden_size": 1024,
+  "learning_rate": 0.0001,
+  "seed": 2026,
+  "prompt": "Describe the image in a short phrase:",
+  "generation_prompt": " This image shows",
+  "validation_fraction": 0.3333333333333333,
+  "batch_size": 2,
+  "max_steps": 30,
+  "max_caption_tokens": 24,
+  "max_new_tokens": 12,
+  "log_every": 1,
+  "checkpoint_every": 10,
+  "minimum_loss_improvement": 0.0,
+  "resume_atol": 1e-05,
+  "verify_resume": true
+}

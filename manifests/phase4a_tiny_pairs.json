@@ -1,0 +1,23 @@
+{
+  "artifact_type": "phase4a_paired_manifest_v1",
+  "name": "visionzip_generated_three_image_pairs",
+  "description": "License-free deterministic sample images paired with short English captions for Phase 4A infrastructure smoke/overfit validation.",
+  "license": "Project-generated license-free test inputs; see assets/sample_images/README.md",
+  "samples": [
+    {
+      "id": "dense",
+      "image_name": "dense.png",
+      "caption": " dense geometric pattern"
+    },
+    {
+      "id": "scene",
+      "image_name": "scene.png",
+      "caption": " simple outdoor scene"
+    },
+    {
+      "id": "text",
+      "image_name": "text.png",
+      "caption": " printed text"
+    }
+  ]
+}
