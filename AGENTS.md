@@ -2,9 +2,9 @@
 
 > **Purpose:** This is the authoritative cross-account handoff file for Codex agents working on this reproduction. A new agent may have no access to earlier chats. Read this file completely before modifying code, running expensive jobs, changing claims, or proposing the next phase.
 >
-> **Last authoritative update:** 2026-08-03 (Asia/Shanghai), after the first Phase 4B materialization attempt exposed that CommonCatalog row `sha256` is distinct from the processed embedded JPEG digest. The failed assumption was corrected locally, dual-hash provenance tests pass, and no images were materialized by the failed attempt.
+> **Last authoritative update:** 2026-08-03 (Asia/Shanghai), after the corrected Phase 4B materialization completed successfully on AutoDL and the full 8,192-sample dataset passed independent integrity, attribution, digest, dimension, split, and source-shard validation.
 >
-> **Current phase boundary:** Phases 1, 2, 3A, 3B, and Phase 4A are complete. **Phase 4B is in progress**. The five pinned Parquet sources are cached on AutoDL, but dataset materialization has not completed. A real-data integration defect was found and fixed locally; the next blocking action is to commit/synchronize the fix and rerun materialization in `tmux`. No Phase 4B training or quality result is claimed.
+> **Current phase boundary:** Phases 1, 2, 3A, 3B, and Phase 4A are complete. **Phase 4B is in progress**. Commit `14e527f` is synchronized on Windows, GitHub, and AutoDL; the licensed 8,192-sample dataset is materialized and validated. The next blocking action is frozen CLIP/VisionZip feature precomputation in `tmux`. No Phase 4B training, held-out improvement, or caption-quality result is claimed.
 
 ## 1. Mandatory instructions for every future Codex agent
 
@@ -112,6 +112,7 @@ Phase 4B synchronized source/preflight state:
 
 ```text
 Infrastructure commit: 8ac45e3 (Windows, GitHub main, and AutoDL synchronized)
+Dual-hash correction commit: 14e527f (Windows, GitHub main, and AutoDL synchronized)
 Dataset: common-canvas/commoncatalog-cc-by
 Pinned dataset revision: 80f50fe4a1ca937f37a11be3f8eee5199d776ff3
 Pilot source: five pinned 512-768 / square-aspect Parquet shards
@@ -130,8 +131,15 @@ Pinned source Parquet cache after first execute attempt: complete, about 3.3 GiB
 First materialization attempt on ba8d89e: failed safely before writing images
 Observed rejection: 9,576 rows under the invalid source/embedded SHA equality assumption
 Root cause: row sha256 is upstream source identity; embedded Parquet JPEG has its own digest
-Local correction: preserve and validate both digests independently; 50 Windows tests pass
-External dataset materialization: not completed
+Correction: preserve and validate both digests independently; 50 Windows tests pass
+Second materialization attempt on 14e527f: completed successfully, exit code 0
+Prepared dataset directory: datasets/phase4b/commoncatalog_cc_by_8k (about 1.1 GiB)
+Materialized images/samples: 8,192 / 8,192
+Materialized split: 7,168 train + 1,024 validation
+Full dataset validation: passed=true
+Validated samples SHA256: c2b205622a67349ee22547e2648c264cd6a71979906d57cc4b59fede10e330f2
+Pinned source files: 5; recomputed source SHA256 and byte sizes all exact
+Distinct source/embedded hashes: 8,192; invalid attribution and dimension mismatches: 0
 Feature precompute: not run
 Training/evaluation: not implemented or run
 ```
@@ -845,13 +853,13 @@ Feature store: 32 expected NPZ shards of 256 samples, float32
 
 Exact next actions:
 
-1. Commit/push the dual-hash correction and documentation/tests; fast-forward AutoDL without staging generated logs or cached data.
-2. Rerun `scripts/prepare_phase4b_dataset.py --execute` in `tmux`, reusing the pinned cached Parquet sources, then verify exact counts, both digest fields, attribution fields, decoded dimensions, and the completed manifest.
-3. In `tmux`, precompute and verify all frozen feature shards; test `--verify-existing` and interrupted-shard reuse.
-4. Implement the next source slice: gradient accumulation, rolling/best/final checkpoint retention, held-out NLL/perplexity, BLEU-1/BLEU-4, ROUGE-L, and deterministic generation subset.
-5. Run a fresh CUDA training/evaluation and an explicit resume run, archive/hash evidence, update README/this handoff, and only then call Phase 4B complete.
+1. In `tmux`, precompute all frozen CLIP/VisionZip feature shards with the pinned CLIP revision, requested layer `-2` (resolved layer 22), VisionZip budget 64, batch size 4, shard size 256, and float32 storage.
+2. Verify the completed feature manifest: 8,192 samples, exactly 32 shards, exact prepared-dataset sample order, `[N, 65, 1024]` compressed-token shape, finite floats, legal indices/assignments, and exact shard SHA256 values.
+3. Run `--verify-existing` and verify that a repeated invocation reuses complete valid shards; if practical, test that an incomplete or invalid shard is not silently reused.
+4. Implement the next source slice: gradient accumulation, warmup/scheduler, rolling/best/final checkpoint retention, exact resume, held-out target-only NLL/perplexity, BLEU-1/BLEU-4 with documented smoothing, ROUGE-L, and a deterministic generation subset.
+5. Run fresh CUDA training/evaluation and an explicit resume run, archive/hash evidence, update README/this handoff, and only then call Phase 4B complete.
 
-Current claim boundary: Phase 4B has started at the planning and infrastructure level. No real paired-data materialization, feature-precompute, training, held-out improvement, or caption-quality claim exists yet.
+Current claim boundary: the licensed real paired dataset has been materialized and validated, so Phase 4B has progressed beyond planning. Frozen feature precompute, real paired-data training, held-out evaluation, improvement, and caption-quality claims do not exist yet.
 
 ## 12. Network and recovery notes
 
@@ -893,5 +901,6 @@ Use the environment settings in section 4.3. Do not repeatedly delete the workin
 | 2026-08-03 | `212b81e` baseline plus local Phase 4B infrastructure change set | Selected and pinned CommonCatalog CC-BY, fixed the 8,192-sample pilot and held-out policy, implemented safe preparation/preflight and hashed feature-shard modules/scripts, passed 9 focused tests and 50-test full Windows discovery, and passed a Windows no-download preflight. No download or training has run. | Commit/push, sync AutoDL, then run import smoke and the AutoDL no-download preflight. |
 | 2026-08-03 | `8ac45e3` synchronized on Windows, GitHub, and AutoDL; handoff update in the following documentation commit | Installed only the pinned Phase 4B preparation dependency set required on AutoDL, passed all 50 AutoDL tests with 8 PyTorch-only skips, and passed the AutoDL no-download preflight with 210,363,502,592 free bytes versus 9,003,935,588 estimated required bytes. No external data was downloaded. | Launch the pinned 8,192-sample materialization in `tmux`, then validate the completed dataset manifest before feature precompute. |
 | 2026-08-03 | `ba8d89e` synchronized plus local dual-hash correction | Installed `tmux`, cached all five pinned Parquet sources, and ran the first execute attempt. It failed safely with 0 images because 9,576 otherwise acceptable rows had distinct row-source and embedded-JPEG SHA256 values. Real-row inspection established the two provenance digests are intentionally distinct; code/docs/tests now preserve both, reject malformed source digests, and all 50 Windows tests pass. | Commit/push/sync the correction, then rerun materialization from the completed source cache in `tmux`. |
+| 2026-08-03 | `14e527f` synchronized on Windows, GitHub, and AutoDL; dataset artifacts remain untracked | Reran the corrected materialization from the pinned cache in `tmux`; exit code was 0 and all 8,192 images were written. Independent full validation passed with 7,168/1,024 train/validation samples, sample-manifest SHA256 `c2b205622a67349ee22547e2648c264cd6a71979906d57cc4b59fede10e330f2`, all five source shard hashes/sizes exact, 8,192 distinct source/embedded digest pairs, and zero attribution or decoded-dimension errors. | Commit/push this handoff update, sync AutoDL, then precompute and verify the 32 frozen CLIP/VisionZip feature shards in `tmux`. |
 
 When adding a new row, keep older rows. The newest row should state the exact commit or dirty-worktree state, the verified result, and the next blocking action.
