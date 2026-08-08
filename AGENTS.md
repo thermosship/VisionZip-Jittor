@@ -2,9 +2,9 @@
 
 > **Purpose:** This is the authoritative cross-account handoff file for Codex agents working on this reproduction. A new agent may have no access to earlier chats. Read this file completely before modifying code, running expensive jobs, changing claims, or proposing the next phase.
 >
-> **Last authoritative update:** 2026-08-05 (Asia/Shanghai), while preparing the demonstration video. README section 7.2 contained two lines committed as literal question marks since `04f098d`; `main` now restores explicit UTF-8 Chinese guidance. The immutable tag `v0.1.0-jittor-submission` remains unchanged. All previously recorded phase results and claim boundaries remain valid.
+> **Last authoritative update:** 2026-08-08 (Asia/Shanghai). The top-level README is being rewritten on Windows in a student reproduction-report style: the phase-audit wording has been reduced, human-readable `exact` claims have been replaced by fixed-input elementwise agreement or tolerance-based wording, and a section now records the real implementation problems encountered during the project. This is a documentation-only post-release change; all measured values, detailed phase documents, and the immutable tag `v0.1.0-jittor-submission` remain unchanged.
 >
-> **Current phase boundary:** **Phases 1, 2, 3A, 3B, 4A, 4B, and 5A are complete. The clean README walkthrough and immutable GitHub submission tag/release freeze are complete. Phase 5B is deferred.** Repository technical/material work is frozen at `v0.1.0-jittor-submission`; the next work is PPT, narration, video, and submission-day list/claim review. Do not describe this project as a full reproduction of every VisionZip paper experiment, LLaVA-equivalent training, caption-quality improvement, raw-logit bitwise equality, universal strict-`1e-5` equality, or universal speedup.
+> **Current phase boundary:** **Phases 1, 2, 3A, 3B, 4A, 4B, and 5A are complete. The clean README walkthrough and immutable GitHub submission tag/release freeze are complete. Phase 5B is deferred.** PPT and demonstration-video preparation have also been carried out; the current task is post-release README wording cleanup and final submission review. Do not describe this project as a full reproduction of every VisionZip paper experiment, LLaVA-equivalent training, caption-quality improvement, raw-logit bitwise equality, universal strict-`1e-5` equality, or universal speedup.
 
 ## 1. Mandatory instructions for every future Codex agent
 
@@ -91,7 +91,7 @@ The user's low local RAM does not limit remote model loading. Avoid opening larg
 
 ## 3. Current live state
 
-The immutable submission snapshot is frozen at `5cf8cb65bf5e9df3e6b4d4990fb2769bc813c18f` with annotated tag `v0.1.0-jittor-submission`. The public GitHub Release is published and verified. This post-release handoff/readiness update is intentionally on `main` after the frozen tag; it must not be used to move or recreate the tag. Existing AutoDL model/data/checkpoint/log artifacts remain untracked and must not be added to Git. Historical Phase 2/4A/4B/5A evidence archives remain authoritative for the measured values used by compact tables and plots.
+The immutable submission snapshot is frozen at `5cf8cb65bf5e9df3e6b4d4990fb2769bc813c18f` with annotated tag `v0.1.0-jittor-submission`. The public GitHub Release is published and verified. Windows `main` is based on synchronized commit `dd93133`; the current dirty worktree contains a documentation-only rewrite of `README.md` plus this handoff update. The tag must not be moved or recreated. Existing AutoDL model/data/checkpoint/log artifacts remain untracked and must not be added to Git. Historical Phase 2/4A/4B/5A evidence archives remain authoritative for every measured value retained in the rewritten README.
 
 Current Submission Readiness state:
 
@@ -112,7 +112,7 @@ GitHub Release: https://github.com/thermosship/VisionZip-Jittor/releases/tag/v0.
 Release state: published; draft=false; prerelease=false; uploaded assets=0
 Release policy: source and release notes only; no weights, datasets, checkpoints, feature shards, CLIP references, or large raw logs
 Windows validation: focused 3/3; full 80 tests with 18 skips; compileall/diff checks pass; 50 relative links and compact JSON pass
-Next blocker: PPT/narration/video and submission-day list/claim review
+Next blocker: review and validate the README wording update, then commit/push it to main if approved; do not move the immutable release tag
 ```
 
 ```text
@@ -1138,17 +1138,17 @@ It does **not** yet prove:
 
 The fresh Phase 4A validation loss increased from `7.54148` to `7.75218`, and the generated validation text was poor. Retain both facts in future reports. They do not invalidate the infrastructure acceptance result, but they prohibit any visual-language quality claim.
 
-## 11. Next exact actions -- SUBMISSION READINESS
+## 11. Next actions -- README CLEANUP AND FINAL SUBMISSION REVIEW
 
-Phase 5A, the clean README walkthrough, and the immutable GitHub submission release freeze are complete; Phase 5B is deferred. Do not move or overwrite `v0.1.0-jittor-submission`.
+Phase 5A, the clean README walkthrough, and the immutable GitHub submission release freeze are complete; Phase 5B remains deferred. Do not move or overwrite `v0.1.0-jittor-submission`.
 
-Exact next actions:
+Current next actions:
 
-1. Recheck the live `GrokCV/Jittor-Sprouts` list on the actual submission date and retain a dated note/screenshot outside large Git artifacts if required.
-2. Build the final PPT from the committed tables and figures in `docs/results/` and `docs/assets/`; do not manually retype measured values.
-3. Prepare the 20–30 minute narration/video with the algorithm section under 10 minutes and implementation/training/testing demonstration at least 10 minutes.
-4. Perform the final PPT/video claim audit against `docs/TRAINING_AND_CLAIM_BOUNDARY.md` and the tagged README.
-5. Do not start Phase 5B or change the frozen submission tag unless the user explicitly creates a separate post-submission scope/version.
+1. Review the rewritten top-level README for student-like tone, correct experiment boundaries, working links, and preservation of all measured values.
+2. Run `git diff --check`, the environment-script regression test, `compileall`, and relative-link checks. This README-only change does not require rerunning GPU experiments.
+3. If the user approves the wording, explicitly stage only `README.md` and `AGENTS.md`, commit them on `main`, and push without changing the frozen tag/release.
+4. Synchronize the AutoDL checkout after the push. Generated weights, datasets, checkpoints, features, and raw logs must remain untracked.
+5. Before final submission, recheck the live `GrokCV/Jittor-Sprouts` list and audit the PPT/video wording against `docs/TRAINING_AND_CLAIM_BOUNDARY.md`.
 
 Current claim boundary: this repository demonstrates a native-Jittor VisionZip compression core, real CLIP feature alignment, frozen real GPT-2 integration, Projector-only paired training on a pinned 8,192-sample licensed subset, and native KV-cache generation under pinned protocols. It does not reproduce every experiment or quality conclusion in the VisionZip paper and does not establish LLaVA-equivalent quality, COCO multi-reference caption quality, raw-logit bitwise equality, universal strict-`1e-5` equality, or universal speedup.
 
@@ -1240,5 +1240,7 @@ Use the environment settings in section 4.3. Do not repeatedly delete the workin
 | 2026-08-03 | Immutable tag/release `v0.1.0-jittor-submission` published at `5cf8cb65bf5e9df3e6b4d4990fb2769bc813c18f`; post-release status update dirty on Windows | Confirmed clean synchronized release candidate, 50 relative links, absent local/remote tag, then created and pushed the annotated tag. Published GitHub Release `VisionZip-Jittor v0.1.0 - Cultivation Submission`; API verification reports `draft=false`, `prerelease=false`, zero uploaded assets, correct frozen commit and walkthrough SHA in the notes, and explicit non-claim/no-binary policy. The tag is now immutable and must never be moved. | Commit/push this post-release handoff/readiness status to `main` without changing the tag, synchronize AutoDL, then move to PPT/video and submission-day Jittor-Sprouts/claim checks. |
 
 | 2026-08-05 | `9dbec30` synchronized baseline plus the post-release README correction contained in this handoff update | Video preparation exposed two literal question-mark placeholder lines in README section 7.2, introduced by `04f098d`. Restored clear instructions to generate three deterministic license-free sample images before the real CLIP one-command pipeline; audited tracked UTF-8 text and reran the focused README ordering regression test. The immutable submission tag was not moved. | Push the post-release `main` documentation correction, synchronize Windows, and continue PPT/video work without moving or rebuilding the submission tag. |
+
+| 2026-08-08 | `dd93133` synchronized baseline; `README.md` and `AGENTS.md` dirty on Windows | Reorganized the top-level README from a phase/gate audit into a student-style reproduction guide. Replaced human-readable `100% exact`, `exact 3/3`, `PASS`, and gate wording with fixed-input elementwise agreement or stated-tolerance wording; preserved the measured CLIP, GPT-2, Projector-training, and KV-cache values; added practical notes on Xet 401, CUDA near-ties, token order, Jittor `eval()`/`stop_grad`, dual environments, and large artifacts. No code, result file, or immutable tag changed. | Local checks completed: `git diff --check`, the 3 focused environment/README tests, full Windows discovery (80 tests, 18 environment-only skips), `compileall`, UTF-8 scan, banned-word scan, and 21 relative-link checks all pass. Review the final diff, then explicitly commit/push only the README and handoff update if approved; never move `v0.1.0-jittor-submission`. |
 
 When adding a new row, keep older rows. The newest row should state the exact commit or dirty-worktree state, the verified result, and the next blocking action.

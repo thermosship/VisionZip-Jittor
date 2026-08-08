@@ -1,152 +1,106 @@
 # VisionZip-Jittor
 
-使用 **Jittor 原生张量算子**复现 CVPR 2025 论文 **VisionZip: Longer is Better but Not Necessary in Vision Language Models** 的视觉 Token 压缩核心，并完成真实 CLIP 数值对齐、Projector-only 训练、原生 Jittor GPT-2 Small 与 KV-cache 验证。
+这是我用 **Jittor** 复现 CVPR 2025 论文 **VisionZip: Longer is Better but Not Necessary in Vision Language Models** 的项目。复现的重点是 VisionZip 的视觉 Token 压缩方法，以及它接入真实 CLIP、Projector 和语言模型后的基本训练与推理流程。
 
-[论文（CVF）](https://openaccess.thecvf.com/content/CVPR2025/html/Yang_VisionZip_Longer_is_Better_but_Not_Necessary_in_Vision_Language_CVPR_2025_paper.html) · [官方代码](https://github.com/JIA-Lab-research/VisionZip) · [详细结果](docs/RESULTS_SUMMARY.md) · [训练边界](docs/TRAINING_AND_CLAIM_BOUNDARY.md) · [提交检查](docs/SUBMISSION_READINESS.md) · [干净环境验证](docs/CLEAN_README_WALKTHROUGH.md)
+- 论文：[CVF Open Access](https://openaccess.thecvf.com/content/CVPR2025/html/Yang_VisionZip_Longer_is_Better_but_Not_Necessary_in_Vision_Language_CVPR_2025_paper.html)
+- 官方实现：[JIA-Lab-research/VisionZip](https://github.com/JIA-Lab-research/VisionZip)
+- 本项目提交版：[v0.1.0-jittor-submission](https://github.com/thermosship/VisionZip-Jittor/releases/tag/v0.1.0-jittor-submission)
 
-> **状态（2026-08-03）**：核心 Jittor 工程复现、真实 CLIP 三档对齐、真实 paired pilot 训练和 KV-cache 验收均已完成。仓库不是 VisionZip 论文全部表格/任务/模型规模的完整复刻；准确结论边界见[范围声明](#12-复现范围与结论边界)。
+受计算资源和时间限制，我没有重跑论文中的全部 LLaVA-7B/13B 任务，而是把工作集中在以下几部分：
 
-![Phase 4B loss curve](docs/assets/phase4b_loss_curve.png)
+1. 用 Jittor 实现 Dominant Token Selection 和 Contextual Token Merging；
+2. 使用真实 `CLIP-ViT-L/14-336` 特征，与独立 PyTorch 参考实现进行对比；
+3. 导入 GPT-2 Small 权重，完成原生 Jittor 前向、Projector-only 训练和 KV-cache；
+4. 在 8,192 组 CC-BY 图文数据上进行小规模训练，记录 Loss、显存和速度。
 
-## 1. 结果摘要
+![VisionZip token visualization](docs/assets/visionzip_token_visualizations.png)
 
-### 1.1 真实 CLIP：PyTorch/Jittor 对齐
+## 1. 方法简介
 
-`openai/clip-vit-large-patch14-336`、FP32、3 张真实输入、RTX 4090：
+视觉语言模型通常会把一张图片编码为数百个视觉 Token。论文观察到，这些 Token 中有一部分对后续生成更重要，另外一些 Token 的信息比较相似，因此没有必要把完整序列全部送入语言模型。
 
-| Vision 预算（不含 CLS） | 实际输出 Token | Selected indices | Assignments | Compressed max abs | 结论 |
-|---:|---:|---|---|---:|---|
-| 64 | 65 | 100% exact | 100% exact | `5.722046e-06` | PASS |
-| 128 | 129 | 100% exact | 100% exact | `1.907349e-06` | PASS |
-| 192 | 193 | 100% exact | 100% exact | `1.907349e-06` | PASS |
+本项目实现时对照了官方仓库 `main` 分支的 `8f86b55c6f000eb033e6912538af2dd7dcb30502` 提交，具体对应关系记录在 [`references/UPSTREAM.md`](references/UPSTREAM.md)。压缩过程分为两步。
 
-三档均通过冻结的 `atol=1e-5, rtol=1e-5` 协议。完整表见 [`docs/results/phase2_real_clip_alignment.csv`](docs/results/phase2_real_clip_alignment.csv)。
+### 1.1 Dominant Token Selection
 
-![Alignment errors](docs/assets/phase2_alignment_errors.png)
+1. 从 CLIP 倒数第二层读取隐藏状态、注意力和 Key 特征；
+2. 汇总 CLS Token 对各个 Patch Token 的多头注意力；
+3. 根据注意力分数选出更受 CLS 关注的 Patch；
+4. 保留 CLS，并把选中的 Patch 恢复为原图中的顺序。
 
-### 1.2 真实配对数据 Projector-only 训练
+这里需要特别注意最后一步。Top-K 返回的是一个集合，但语言模型接收的是有顺序的视觉序列。如果只保证选中的位置相同，却打乱了原始 Patch 顺序，后面的 Projector 和语言模型仍会得到不同输入。
 
-- 数据：CommonCatalog CC-BY 固定 revision 的 8,192 样本 pilot；
-- split：7,168 train / 1,024 validation；
-- 训练：冻结 CLIP/VisionZip 特征和 GPT-2 Small，仅更新 Jittor Projector；
-- 计划：1,344 optimizer steps，全部完成且更新 finite；
-- held-out target NLL：`6.6437166 -> 2.4131878`；
-- held-out perplexity：`767.9438 -> 11.1695`；
-- GPT-2：全参数 stop-grad，训练前后 SHA256 不变；
-- optimizer scope：严格等于 Projector 参数集合。
+### 1.2 Contextual Token Merging
 
-完整训练 trace、validation curve 和机器可读摘要位于 [`docs/results/`](docs/results/README.md)。
-
-### 1.3 原生 Jittor GPT-2 KV-cache
-
-固定协议：64/128/192 三档 × 3 样本、每次生成 32 Token、3 warm-up、10 measured runs。
-
-| Budget | Greedy IDs | Cache contract | 最大逐步 TV | Cached / uncached total | Speedup | Peak GPU |
-|---:|---|---|---:|---:|---:|---:|
-| 64 | exact 3/3 | exact 3/3 | `2.091176e-05` | `240.8540 / 243.3399 ms` | `1.01032x` | `1168 MiB` |
-| 128 | exact 3/3 | exact 3/3 | `3.505422e-05` | `241.4139 / 255.4643 ms` | `1.05820x` | `1250 MiB` |
-| 192 | exact 3/3 | exact 3/3 | `1.598436e-05` | `241.0673 / 290.8731 ms` | `1.20661x` | `1322 MiB` |
-
-性能只对应固定 RTX 4090/Jittor/长度协议；`require_speedup=false`，不声称通用加速。
-
-### 1.4 PyTorch/Jittor 与训练完整性总表
-
-| 阶段 | 对齐或完整性对象 | 结果 | 边界 |
-|---|---|---|---|
-| Phase 1 | 独立 PyTorch 参考 vs 原生 Jittor 核心 | 索引 exact，FP32 allclose | 合成张量与完整 CLIP shape |
-| Phase 2 | 真实 CLIP 特征上的 VisionZip | 64/128/192 三档 PASS，Assignments exact | 3 张固定测试图 |
-| Phase 3B | Hugging Face GPT-2 vs 原生 Jittor GPT-2 | reference logits allclose；max abs `2.136230e-04` | 固定 GPT-2 Small prompt/artifacts |
-| Phase 4B | Projector-only 训练隔离 | GPT-2 hash unchanged；optimizer scope exact；1,344/1,344 finite | 固定 8,192 样本 pilot |
-| Phase 5A | cached vs uncached decode | 9/9 greedy IDs、cache contract、TV gate 全部通过 | 固定 RTX 4090、3 样本、32 Token |
-
-完整数值和口径见 [`docs/RESULTS_SUMMARY.md`](docs/RESULTS_SUMMARY.md)，机器可读汇总见 [`docs/results/submission_results.json`](docs/results/submission_results.json)。
-
-## 2. 方法概览
-
-VisionZip 在视觉编码器中间层把原始 Patch Token 压缩为少量信息密集 Token：
+未被选中的 Patch 不会全部丢弃。代码会从剩余 Token 中均匀选择若干目标位置，再按照归一化 Key 的余弦相似度，把其他 Token 分配到最近的目标上，最后对同组隐藏状态求平均，得到 Contextual Tokens。
 
 ```mermaid
 graph LR
-    A["CLIP hidden states / attention / key metric"] --> B["Dominant Token Selection"]
-    B --> C["保留 CLS 与高注意力 Patch"]
-    A --> D["Contextual Token Merging"]
-    D --> E["将剩余 Patch 分配并平均到 Contextual targets"]
-    C --> F["Compressed visual tokens"]
-    E --> F
-    F --> G["Jittor Projector"]
-    G --> H["Frozen native Jittor GPT-2"]
+    A["CLIP视觉特征"] --> B["按CLS注意力选出Dominant Tokens"]
+    A --> C["计算剩余Token的Key相似度"]
+    C --> D["分组并平均得到Contextual Tokens"]
+    B --> E["拼接压缩后的视觉序列"]
+    D --> E
+    E --> F["Projector"]
+    F --> G["GPT-2 Small"]
 ```
 
-### 2.1 Dominant Token Selection
+### 1.3 Token 预算
 
-1. 读取 CLIP 倒数第二层 attention；
-2. 对 `CLS -> Patch` attention 在 head 维求和；
-3. 选择 Top-k dominant patches；
-4. 额外保留 CLS；
-5. 按原视觉序列顺序输出 dominant tokens。
+配置中的预算不包含 CLS，因此实际输出长度要再加 1。
 
-### 2.2 Contextual Token Merging
+| 配置 | Dominant | Contextual | 预算（不含 CLS） | 实际输出 |
+|---|---:|---:|---:|---:|
+| `visionzip_64.json` | 54 | 10 | 64 | 65 |
+| `visionzip_128.json` | 108 | 20 | 128 | 129 |
+| `visionzip_192.json` | 162 | 30 | 192 | 193 |
 
-1. 从未保留位置中按固定规则选择 contextual targets；
-2. 对 CLIP `k_proj` 的 head-mean metric 做 L2 normalization；
-3. 计算 merge token 与 target token 的 cosine similarity；
-4. argmax 分配；
-5. 按官方 `code_exact` 语义，对被分配的 merge tokens 求平均生成 contextual tokens。
+其中 `54 + 10` 来自官方 README；128 和 192 是本项目为了观察不同长度而按比例增加的配置，不把它们当作论文给出的正式划分。
 
-核心实现：[`visionzip_jittor/core.py`](visionzip_jittor/core.py)。独立 PyTorch 参考：[`reference/pytorch_visionzip.py`](reference/pytorch_visionzip.py)。
+## 2. 这次复现做了什么
 
-## 3. Token 预算口径
+- VisionZip 核心压缩逻辑及边界情况测试；
+- 真实 CLIP 三档 Token 预算的 PyTorch/Jittor 对比；
+- Token 选择与合并结果可视化；
+- `1024 -> 768 -> 768` 的 Jittor Projector；
+- Hugging Face GPT-2 Small 权重导出和原生 Jittor 加载；
+- 图像 Token、文本 Token 和 Label 的多模态序列拼接；
+- 只更新 Projector 的训练、验证、checkpoint 和断点恢复；
+- GPT-2 KV-cache 生成及 cached/uncached 路径对比；
+- Loss 曲线、运行时间、吞吐和显存记录。
 
-配置中的 `dominant_tokens + contextual_tokens` **不包括 CLS**：
+更细的排查和实验记录放在 [`docs/`](docs/) 中，README 这里只列主要运行方法和结果。
 
-| 配置 | Dominant patches | Contextual | 配置预算 | 实际输出（含 CLS） | 来源 |
-|---|---:|---:|---:|---:|---|
-| [`visionzip_64.json`](configs/visionzip_64.json) | 54 | 10 | 64 | 65 | 官方 README 54:10 设置 |
-| [`visionzip_128.json`](configs/visionzip_128.json) | 108 | 20 | 128 | 129 | 项目 2x 比例扩展 |
-| [`visionzip_192.json`](configs/visionzip_192.json) | 162 | 30 | 192 | 193 | 项目 3x 比例扩展 |
+## 3. 环境配置
 
-128/192 是项目 preset，不宣称为论文官方 split。
-
-## 4. 上游版本
-
-核心逻辑固定到：
-
-```text
-Repository: JIA-Lab-research/VisionZip
-Branch: main
-Commit: 8f86b55c6f000eb033e6912538af2dd7dcb30502
-Snapshot date: 2026-08-01
-```
-
-详见 [`references/UPSTREAM.md`](references/UPSTREAM.md)。本仓库没有复制官方 LLaVA 代码；PyTorch 参考模块仅用于框架对齐。
-
-## 5. 环境安装
-
-### 5.1 已验证环境
+### 3.1 已测试环境
 
 | 组件 | 版本 |
 |---|---|
-| OS | Ubuntu 22.04.1 LTS |
+| 操作系统 | Ubuntu 22.04.1 LTS |
 | Python | 3.10.20（Jittor 环境） |
 | Jittor | 1.3.11.0 |
-| PyTorch reference | 2.1.2+cu118 |
+| PyTorch | 2.1.2+cu118 |
 | Transformers | 4.31.0 |
-| CUDA Toolkit used by Jittor | 11.8.89 |
-| GPU | NVIDIA GeForce RTX 4090 24GB, `sm_89` |
+| Jittor 使用的 CUDA Toolkit | 11.8.89 |
+| GPU | NVIDIA GeForce RTX 4090 24GB |
 
-`nvidia-smi` 显示的驱动支持 CUDA 版本可能高于 Jittor 实际编译所用的 CUDA Toolkit；本项目实际 Jittor cache key 为 CUDA 11.8 / `sm_89`。
+`nvidia-smi` 显示的是驱动能够支持的 CUDA 上限，不一定等于 Jittor 编译时实际使用的 Toolkit。本次运行中 Jittor 使用 CUDA 11.8，GPU 架构为 `sm_89`。
 
-### 5.2 推荐双环境
+### 3.2 为什么使用两个 Python 环境
 
-PyTorch/Hugging Face 参考导出环境：
+PyTorch 只用于生成参考结果、下载模型和预计算 CLIP 特征；Jittor 环境用于运行复现代码和训练。分开安装可以避免两个框架及其环境变量互相影响。
+
+**PyTorch/Hugging Face 环境：**
 
 ```bash
 /root/miniconda3/bin/python -m pip install -r requirements/pytorch.txt
 /root/miniconda3/bin/python -m pip install -r requirements/real_clip.txt
 /root/miniconda3/bin/python -m pip install -r requirements/phase3b_reference.txt
+/root/miniconda3/bin/python -m pip install -r requirements/phase4b_prepare.txt
 ```
 
-Jittor 环境：
+**Jittor 环境：**
 
 ```bash
 source /root/miniconda3/etc/profile.d/conda.sh
@@ -155,31 +109,19 @@ conda activate /root/autodl-tmp/envs/visionzip-jittor
 python -m pip install -r requirements/jittor.txt
 python -m pip install -r requirements/phase3b_jittor.txt
 python -m pip install -r requirements/dev.txt
+python -m pip install -e .
 ```
 
-激活脚本默认使用 `/root/autodl-tmp/envs/visionzip-jittor`，但会根据脚本自身位置进入对应 checkout。需要做独立环境验证时可覆盖环境和缓存目录：
+以后重新打开 AutoDL 实例，可以直接运行：
 
 ```bash
-export VISIONZIP_JITTOR_ENV=/root/autodl-tmp/envs/visionzip-readme-clean
-export VISIONZIP_CACHE_ROOT=/root/autodl-tmp/cache
+cd /root/autodl-tmp/VisionZip-Jittor
 source environment/activate_jittor.sh
 ```
 
-因此从临时 clone/worktree 调用脚本时，不会跳回主工作区。
+该脚本会激活环境、设置缓存目录并进入当前仓库。如果环境放在其他路径，可提前设置 `VISIONZIP_JITTOR_ENV`。
 
-数据准备依赖安装在 PyTorch/下载环境：
-
-```bash
-/root/miniconda3/bin/python -m pip install -r requirements/phase4b_prepare.txt
-```
-
-每次 AutoDL 开机：
-
-```bash
-source /root/autodl-tmp/VisionZip-Jittor/environment/activate_jittor.sh
-```
-
-如 Hugging Face Xet 返回 401，可在当前 shell 使用：
+Hugging Face 下载如果出现 Xet 401，可在当前终端设置：
 
 ```bash
 source /etc/network_turbo
@@ -188,52 +130,62 @@ export HF_HUB_ETAG_TIMEOUT=60
 export HF_HUB_DOWNLOAD_TIMEOUT=600
 ```
 
-## 6. 测试
+## 4. 项目结构
 
-### 6.1 Windows/无 Jittor 静态与 PyTorch 测试
+```text
+visionzip_jittor/
+  core.py                 # VisionZip Token选择与合并
+  clip_features.py        # CLIP Key特征和数值兼容归一化
+  projector.py            # Jittor Projector
+  gpt2.py                 # Jittor GPT-2与KV-cache
+  phase4_training.py      # 多模态拼接、Loss、checkpoint
+  phase4b_data.py         # 数据过滤、划分和许可信息
+  phase4b_features.py     # 冻结特征读取
+  phase4b_training.py     # Projector训练与验证
+reference/
+  pytorch_visionzip.py    # 独立PyTorch参考实现
+configs/                  # 64/128/192预算和训练配置
+scripts/                  # 导出、训练、测试、可视化脚本
+tests/                    # 单元测试和对齐测试
+docs/assets/              # README/PPT使用的图片
+docs/results/             # 精简后的CSV和JSON结果
+```
 
-```powershell
-cd C:\Users\69444\Desktop\cmm\VisionZip-Jittor
+`outputs/`、`logs/`、数据集、模型权重和 checkpoint 默认不提交 GitHub，避免把数百 MB 到数 GB 的文件写入普通 Git 历史。
+
+## 5. 测试与运行
+
+下面的 Linux 命令都在仓库根目录执行。涉及长时间下载或训练时，建议先进入 `tmux`。
+
+### 5.1 单元测试
+
+AutoDL/Jittor 环境：
+
+```bash
+source environment/activate_jittor.sh
 python -m unittest discover -s tests -v
 python -m compileall -q scripts visionzip_jittor reference
 ```
 
-### 6.2 AutoDL/Jittor 完整测试
+不安装 Jittor 时，也可以在 Windows 上检查静态逻辑和 PyTorch 参考模块：
 
-```bash
-cd /root/autodl-tmp/VisionZip-Jittor
-source environment/activate_jittor.sh
+```powershell
 python -m unittest discover -s tests -v
+python -m compileall -q scripts visionzip_jittor reference
 ```
 
-提交材料 commit `7c1d45f` 的验证结果：Windows discovery 为 `Ran 77 tests`, `OK (skipped=18)`；AutoDL/Jittor 首次 discovery 遇到已知的间歇性 Jittor segfault，受影响的 Phase 3 测试随后独立通过 `2/2`，完整 retry 通过 `Ran 77 tests`, `OK (skipped=8)`，且 `compileall`、`git diff --check` 均通过。首次失败和成功重试日志保留在 AutoDL 的 `logs/submission_readiness/`，不纳入 Git。
+我还在一个重新克隆的仓库和新建 Conda 环境中按 README 从头走过一遍。该次运行共执行 80 个测试，8 个与当前环境无关的测试被跳过，其余均通过。过程记录见 [`docs/CLEAN_README_WALKTHROUGH.md`](docs/CLEAN_README_WALKTHROUGH.md)。
 
-最终提交前又在独立 GitHub checkout 与 fresh conda prefix 上完成 README walkthrough：`Ran 80 tests`, `OK (skipped=8)`，合成对齐、真实 CLIP 64/128/192、真实 GPT-2 smoke 和 Phase 4B preflight 全部通过。命令、环境、边界与日志 SHA256 见 [`docs/CLEAN_README_WALKTHROUGH.md`](docs/CLEAN_README_WALKTHROUGH.md)。
+### 5.2 真实 CLIP 对比
 
-## 7. PyTorch/Jittor 对齐
-
-### 7.1 小规模参考
-
-```bash
-/root/miniconda3/bin/python scripts/export_pytorch_reference.py \
-  --config configs/visionzip_64.json \
-  --output outputs/reference_64.npz
-
-python scripts/run_jittor_alignment.py \
-  --reference outputs/reference_64.npz \
-  --output-json logs/alignment_64.json
-```
-
-### 7.2 真实 CLIP 一键流水线
-
-仓库不跟踪生成的样例 PNG；请先创建 3 张确定性的 license-free 样例图：
+仓库不保存生成的样例 PNG，先创建 3 张固定样例图：
 
 ```bash
 /root/miniconda3/bin/python scripts/create_sample_images.py \
   --output-dir assets/sample_images
 ```
 
-然后运行真实 CLIP 一键流水线：
+再运行一键脚本：
 
 ```bash
 set -o pipefail
@@ -248,15 +200,11 @@ HF_HUB_DISABLE_XET=1 python scripts/run_real_clip_pipeline.py \
   2>&1 | tee logs/real_clip/full_pipeline_console.log
 ```
 
-该流水线导出真实 CLIP hidden states、attention、head-mean key metric，运行 Jittor 三档对齐并生成 Token 可视化。
+脚本会生成 PyTorch 参考文件、运行三档 Jittor 对比，并输出 Token 可视化。
 
-![Token visualizations](docs/assets/visionzip_token_visualizations.png)
+### 5.3 导出并运行 GPT-2 Small
 
-数值诊断说明见 [`docs/PHASE2_REAL_CLIP.md`](docs/PHASE2_REAL_CLIP.md)。最初 64-token 路径因 near-tie 出现 4 个 Assignment mismatch；根因不是 BMM，而是 Jittor 与 PyTorch CUDA reduction/division 的 FP32 舍入路径。项目使用专用 CUDA normalization 后实现 exact norm、exact normalized metric、exact similarity 和 exact Assignment。
-
-## 8. 真实 GPT-2 与 Projector
-
-### 8.1 导出 Hugging Face GPT-2 artifacts
+先在 PyTorch 环境中下载并导出权重、配置、Tokenizer 和参考 logits：
 
 ```bash
 HF_HUB_DISABLE_XET=1 /root/miniconda3/bin/python \
@@ -266,11 +214,10 @@ HF_HUB_DISABLE_XET=1 /root/miniconda3/bin/python \
   --output-dir outputs/phase3b/gpt2
 ```
 
-导出结果包含 FP32 weights、HF config、tokenizer、reference logits 和 SHA256 manifest。权重约 475 MiB，不提交到 GitHub。
-
-### 8.2 真实 LLM smoke
+然后在 Jittor 环境中运行：
 
 ```bash
+source environment/activate_jittor.sh
 python scripts/run_phase3b_gpt2.py \
   --config configs/phase3b_gpt2.json \
   --artifact-dir outputs/phase3b/gpt2 \
@@ -278,35 +225,29 @@ python scripts/run_phase3b_gpt2.py \
   --output-json logs/phase3b/gpt2_smoke.json
 ```
 
-Phase 3B 在 64/128/192 三档全部通过：真实 GPT-2、语言参数 frozen/unchanged、optimizer scope exact、Projector gradient finite、Projector 参数发生更新。该阶段仅证明执行和梯度隔离，不证明 caption quality。
+导出的 GPT-2 FP32 权重约 475 MiB，因此不放入 GitHub。
 
-## 9. 数据准备与训练
+### 5.4 数据准备和 Projector 训练
 
-Phase 4B 使用固定的 CC-BY pilot、确定性 split、row-level attribution 和预计算冻结特征。以下命令均从仓库根目录执行；下载/CLIP 特征导出使用 PyTorch 环境，训练使用 Jittor 环境。
+训练数据来自 `common-canvas/commoncatalog-cc-by` 的固定 revision。代码会过滤出 8,192 组 CC-BY 图文样本，并按随机种子 2026 划分为 7,168 个训练样本和 1,024 个验证样本。每条记录都保存来源和许可信息。
 
-完整许可、过滤、resume 和指标口径见：
-
-- [`docs/PHASE4B_DATASET_PLAN.md`](docs/PHASE4B_DATASET_PLAN.md)；
-- [`docs/PHASE4B_REAL_PAIRED_TRAINING.md`](docs/PHASE4B_REAL_PAIRED_TRAINING.md)；
-- [`docs/TRAINING_AND_CLAIM_BOUNDARY.md`](docs/TRAINING_AND_CLAIM_BOUNDARY.md)。
-
-### 9.1 数据预检与物化
+先做配置和磁盘预检：
 
 ```bash
-# 仅检查配置、磁盘预算和目标路径，不下载。
 /root/miniconda3/bin/python scripts/prepare_phase4b_dataset.py \
   --config configs/phase4b_commoncatalog_cc_by_8k.json
+```
 
-# 下载固定 revision 的 pinned shards，并物化 8,192 样本。
+确认无误后再下载并整理数据：
+
+```bash
 /root/miniconda3/bin/python scripts/prepare_phase4b_dataset.py \
   --config configs/phase4b_commoncatalog_cc_by_8k.json \
   --cache-dir /root/autodl-tmp/cache/huggingface \
   --execute
 ```
 
-生成的 manifest 包含确定性 `7,168 / 1,024` split、source/license/attribution、源对象哈希和嵌入 JPEG 哈希。
-
-### 9.2 冻结 CLIP/VisionZip 特征
+预计算冻结的 CLIP/VisionZip 特征：
 
 ```bash
 /root/miniconda3/bin/python scripts/precompute_phase4b_features.py \
@@ -317,9 +258,7 @@ Phase 4B 使用固定的 CC-BY pilot、确定性 split、row-level attribution �
   --device cuda
 ```
 
-如 32 个 shards 已生成，可追加 `--verify-existing` 进行 hash、sample order 和 shape 校验，避免重复计算。
-
-### 9.3 Projector-only 训练
+开始训练：
 
 ```bash
 source environment/activate_jittor.sh
@@ -334,24 +273,9 @@ python scripts/run_phase4b_training.py \
   --log-dir logs/phase4b/training
 ```
 
-长训练必须在 `tmux` 中执行。每步 compact log 与 held-out curve 已提交在 [`docs/results/`](docs/results/README.md)，大日志和 checkpoint 只进入证据包。
+训练时冻结 CLIP、VisionZip 和 GPT-2 Small，只更新 1,377,792 个 Projector 参数。断点恢复命令和数据检查方法见 [`docs/PHASE4B_REAL_PAIRED_TRAINING.md`](docs/PHASE4B_REAL_PAIRED_TRAINING.md)。
 
-### 9.4 Checkpoint resume
-
-```bash
-python scripts/run_phase4b_training.py \
-  --config configs/phase4b_commoncatalog_cc_by_8k.json \
-  --prepared-manifest datasets/phase4b/commoncatalog_cc_by_8k/manifest.json \
-  --feature-manifest outputs/phase4b/commoncatalog_cc_by_8k/features/manifest.json \
-  --artifact-dir outputs/phase3b/gpt2 \
-  --output-dir outputs/phase4b/commoncatalog_cc_by_8k/training_resume \
-  --log-dir logs/phase4b/training_resume \
-  --resume outputs/phase4b/commoncatalog_cc_by_8k/training_benchmark_0f53a93/checkpoints/projector_step_001120.npz
-```
-
-Resume 会恢复 Projector 参数和 Adam 一、二阶状态；CUDA 浮点路径按 `1e-5` 数值复现，不声称 bitwise deterministic replay。
-
-## 10. KV-cache 测试与性能
+### 5.5 KV-cache 测试
 
 ```bash
 python scripts/run_phase5a_kv_cache.py \
@@ -363,93 +287,130 @@ python scripts/run_phase5a_kv_cache.py \
   --output-json logs/phase5a/kv_cache_benchmark.json
 ```
 
-正式 gate：exact greedy IDs、exact per-layer cache shape/content contract、逐步 probability total-variation `<=5e-5`、GPT-2/Projector frozen 且 hash unchanged。raw/centered logits 和 coordinatewise probability allclose 只作为 diagnostic。
+这里比较的是 cached 和 uncached 两条 greedy generation 路径。除了生成 Token，还会检查每层缓存的形状、已有内容是否保持不变，以及新 Token 是否正确追加。
 
-![KV cache results](docs/assets/phase5a_kv_cache.png)
+## 6. 实验结果
 
-## 11. 提交版结果材料
+### 6.1 真实 CLIP：PyTorch 与 Jittor 对比
 
-| 材料 | 路径 |
-|---|---|
-| 实验总览与主表 | [`docs/RESULTS_SUMMARY.md`](docs/RESULTS_SUMMARY.md) |
-| 训练协议与边界 | [`docs/TRAINING_AND_CLAIM_BOUNDARY.md`](docs/TRAINING_AND_CLAIM_BOUNDARY.md) |
-| 提交风险清单 | [`docs/SUBMISSION_READINESS.md`](docs/SUBMISSION_READINESS.md) |
-| Loss/LR/对齐/KV 图 | [`docs/assets/`](docs/assets/) |
-| Compact CSV/JSON logs | [`docs/results/`](docs/results/README.md) |
-| 图表重建脚本 | [`scripts/build_submission_assets.py`](scripts/build_submission_assets.py) |
+实验使用 `openai/clip-vit-large-patch14-336`、FP32、3 张固定测试图和 RTX 4090。浮点张量按照 `atol=1e-5, rtol=1e-5` 判断；索引和分组属于离散结果，直接逐元素比较。
 
-从本地证据包重建图表（Windows PowerShell）：
+| 预算（不含 CLS） | 实际 Token 数 | 选出的索引 | Token 分组 | 压缩结果最大绝对误差 |
+|---:|---:|---|---|---:|
+| 64 | 65 | 与 PyTorch 参考结果一致 | 与 PyTorch 参考结果一致 | `5.722046e-06` |
+| 128 | 129 | 与 PyTorch 参考结果一致 | 与 PyTorch 参考结果一致 | `1.907349e-06` |
+| 192 | 193 | 与 PyTorch 参考结果一致 | 与 PyTorch 参考结果一致 | `1.907349e-06` |
 
-```powershell
-python scripts\build_submission_assets.py `
-  --phase2-archive ..\VisionZip-Jittor-phase2-evidence-20260802.tar.gz `
-  --phase4a-archive ..\VisionZip-Jittor-phase4a-evidence-20260803.tar.gz `
-  --phase4b-archive ..\VisionZip-Jittor-phase4b-evidence-final-v2-20260803.tar.gz `
-  --phase5a-archive ..\VisionZip-Jittor-phase5a-evidence-20260803.tar.gz `
-  --output-dir docs
-```
+这里的“一致”只针对本次固定输入、模型版本和配置。浮点结果是满足上述容差，并不是所有数值都逐比特相同。
 
-图表依赖：
+![PyTorch/Jittor alignment errors](docs/assets/phase2_alignment_errors.png)
 
-```bash
-python -m pip install -e ".[submission]"
-```
+完整 CSV：[`docs/results/phase2_real_clip_alignment.csv`](docs/results/phase2_real_clip_alignment.csv)。
 
-## 12. 复现范围与结论边界
+### 6.2 GPT-2 权重导入
 
-### 本仓库已经证明
+使用的是 124,439,808 参数的 GPT-2 Small，共导出并加载 148 个张量。固定文本输入上的 logits 最大绝对误差为 `2.136230e-04`，满足 `atol=5e-4, rtol=5e-4` 的比较容差。
 
-- VisionZip 核心算法的原生 Jittor 实现；
-- 固定官方逻辑、真实 CLIP 特征和三档预算下的跨框架对齐；
-- 原生 Jittor Projector、多模态 packing、GPT-2 Small、checkpoint/resume 和 KV-cache；
-- 真实 licensed paired pilot 上 Projector-only 训练与 held-out NLL 下降；
-- 固定环境下的训练、显存与缓存生成性能。
+这个结果说明权重映射和前向计算能够对应，不代表模型已经获得了图像描述或视觉问答能力。
 
-### 本仓库没有声称
+### 6.3 Projector-only 训练
 
-- 严格复现 VisionZip 论文全部实验表、数据集、任务、消融和模型规模；
-- 完整 LLaVA-7B/13B 或 LLaVA-equivalent 端到端质量；
-- 人类 caption、COCO 多参考质量或 SOTA；
-- raw logits bitwise exact；
-- 跨硬件、跨模型、跨长度的 universal strict `1e-5` 或 universal speedup。
+训练共完成 1,344 次优化器更新。每次更新只包含 Projector 参数，GPT-2 参数在训练前后保持不变。
 
-培育期规则允许计算资源有限时采用少量数据并与 PyTorch 结果对齐，因此本项目选择“核心算法精确对齐 + 小规模真实训练 + 完整可复现证据链”的范围，不将有限资源结果包装成论文全量复现。
+| 指标 | 训练前 | 训练后 |
+|---|---:|---:|
+| 验证集 target NLL | `6.6437166` | `2.4131878` |
+| 验证集 perplexity | `767.9438` | `11.1695` |
 
-## 13. 项目结构
+性能记录：
 
-```text
-visionzip_jittor/
-  core.py                 # VisionZip compression
-  clip_features.py        # CLIP key metric and PyTorch-compatible CUDA norm
-  projector.py            # native Jittor multimodal Projector
-  gpt2.py                 # native Jittor GPT-2 and KV-cache
-  phase4_training.py      # paired packing, loss, checkpoint/resume
-  phase4b_data.py         # licensed dataset filtering/split/attribution
-  phase4b_features.py     # frozen sharded feature store
-  phase4b_training.py     # real paired training/evaluation/benchmark
-reference/
-  pytorch_visionzip.py    # independent PyTorch alignment reference
-scripts/
-  run_real_clip_pipeline.py
-  run_phase4b_training.py
-  run_phase5a_kv_cache.py
-  build_submission_assets.py
-tests/                    # unit, alignment, training, resume and cache tests
-docs/assets/              # committed presentation-ready figures
-docs/results/             # compact machine-readable logs
-```
+| 项目 | 结果 |
+|---|---:|
+| 平均每次 optimizer step 计算时间 | `120.3718 ms` |
+| 有效训练样本吞吐 | `132.9215 samples/s` |
+| 目标文本 Token 吞吐 | `1413.1492 tokens/s` |
+| 进程峰值显存 | `3058 MiB` |
 
-## 14. 分阶段文档
+在固定的 1,024 个验证样本上，NLL 从 6.6437 降到 2.4132。因为数据规模较小，参考 caption 也不是 COCO 人工多标注，所以这里只把它作为训练流程和 Loss 变化的记录，不与论文的下游任务成绩直接比较。
 
-- [`docs/PHASE1_RESULTS.md`](docs/PHASE1_RESULTS.md)
-- [`docs/PHASE2_REAL_CLIP.md`](docs/PHASE2_REAL_CLIP.md)
-- [`docs/PHASE3_PROJECTOR_FROZEN_LLM.md`](docs/PHASE3_PROJECTOR_FROZEN_LLM.md)
-- [`docs/PHASE3B_REAL_GPT2.md`](docs/PHASE3B_REAL_GPT2.md)
-- [`docs/PHASE4A_PAIRED_TRAINING.md`](docs/PHASE4A_PAIRED_TRAINING.md)
-- [`docs/PHASE4B_DATASET_PLAN.md`](docs/PHASE4B_DATASET_PLAN.md)
-- [`docs/PHASE4B_REAL_PAIRED_TRAINING.md`](docs/PHASE4B_REAL_PAIRED_TRAINING.md)
-- [`docs/PHASE5A_KV_CACHE_PLAN.md`](docs/PHASE5A_KV_CACHE_PLAN.md)
+![Projector training loss](docs/assets/phase4b_loss_curve.png)
 
-## 15. License
+逐步训练记录：[`phase4b_training_trace.csv`](docs/results/phase4b_training_trace.csv)；验证曲线：[`phase4b_validation_curve.csv`](docs/results/phase4b_validation_curve.csv)。
 
-本项目采用 Apache-2.0 License。VisionZip 论文、模型、官方仓库及外部数据集的权利归各自作者和许可声明所有。本仓库用于学习和可复现研究。
+### 6.4 KV-cache
+
+固定测试设置为 3 个样本、生成 32 个 Token、3 次 warm-up 和 10 次计时。cached 与 uncached 路径在 3 个样本上生成了相同的 greedy Token ID，缓存结构检查也都通过。
+
+| 预算 | 最大总变差距离 | uncached | cached | 本次计时比值 | 峰值显存 |
+|---:|---:|---:|---:|---:|---:|
+| 64 | `2.091176e-05` | `243.3399 ms` | `240.8540 ms` | `1.01032x` | `1168 MiB` |
+| 128 | `3.505422e-05` | `255.4643 ms` | `241.4139 ms` | `1.05820x` | `1250 MiB` |
+| 192 | `1.598436e-05` | `290.8731 ms` | `241.0673 ms` | `1.20661x` | `1322 MiB` |
+
+这些速度只对应本次 RTX 4090、Jittor 1.3.11.0 和固定生成长度。它们不能直接替代论文中的 Prefill 加速结果，也不能说明所有显卡和序列长度都会得到相同加速。
+
+![KV-cache results](docs/assets/phase5a_kv_cache.png)
+
+## 7. 复现时遇到的几个问题
+
+### 7.1 Hugging Face Xet 返回 401
+
+第一次下载 CLIP 权重时，普通配置文件可以访问，但大权重跳转到 `cas-server.xethub.hf.co` 后返回 `401 Unauthorized`。最后使用 `HF_HUB_DISABLE_XET=1` 关闭 Xet 下载路径，并把 Hugging Face 缓存放到数据盘。这样既能继续下载，也可以在网络中断后复用已有缓存。
+
+### 7.2 很小的浮点差异改变了 Token 分组
+
+最初 64 Token 配置中，Jittor 和 PyTorch 的索引选择相同，但 1,536 个待合并 Token 中有 4 个被分到了不同目标。最开始我怀疑是矩阵乘法或 `argmax`，逐层保存中间结果后发现，真正差异来自 64 维 Key 的 L2 归一化。
+
+PyTorch CUDA 和 Jittor 默认归约在加法顺序、平方根和除法舍入上略有不同，连续值误差只有约 `1e-7`，但当两个相似度非常接近时，`argmax` 会把它放大成离散分组变化。后来在 Jittor 中补充了与 PyTorch CUDA 运算顺序对应的 64 维归一化核，固定样例上的 norm、归一化 Key、相似度和最终分组才对应起来。
+
+详细排查过程见 [`docs/PHASE2_REAL_CLIP.md`](docs/PHASE2_REAL_CLIP.md)。
+
+### 7.3 Top-K 后不能直接按分数顺序输出
+
+Top-K 给出的是重要 Token 的位置，但它通常按分数排列。官方实现通过布尔 Mask 取值，实际输出仍保持原始 Patch 顺序。Jittor 版本如果直接使用 Top-K 的返回顺序，虽然选中集合没变，视觉序列却会不同，因此这里单独恢复了原始位置顺序。
+
+### 7.4 Jittor `eval()` 会影响 Projector 的可训练状态
+
+早期训练测试中曾出现 Projector 参数不更新。排查后发现，在 Jittor 1.3.11.0 中调用 `projector.eval()` 会改变参数的 `stop_grad` 状态。完成验证后需要重新调用 `projector.train()`，再进入反向传播。这个问题也加入了回归测试，避免训练循环以后再次漏掉。
+
+### 7.5 PyTorch 和 Jittor 环境变量互相影响
+
+我曾在已经安装 PyTorch 的环境中遇到 Transformers 报“没有找到 PyTorch”。原因不是包丢失，而是框架相关环境变量让 Transformers 在导入时跳过了 PyTorch 后端。现在导出脚本固定使用 `/root/miniconda3/bin/python`，Jittor 脚本使用单独的 Conda 环境，并在流水线中隔离这些变量。
+
+### 7.6 模型和实验文件太大，不适合直接提交 GitHub
+
+GPT-2 权重 NPZ 约 475 MiB，真实 CLIP 参考文件、8K 数据、冻结特征和 checkpoint 还会占用更多空间。这些大文件保存在 AutoDL 数据盘和带 SHA256 的本地归档中，GitHub 里只放源码、配置、精简 CSV/JSON、Loss 曲线和说明文档。AutoDL 访问 GitHub 偶尔还会出现 TLS 中断，因此长任务和大文件下载都尽量使用缓存、断点续传和 `tmux`。
+
+## 8. 目前的复现范围
+
+根据目前的实验，我认为可以得到下面几条结论：
+
+- VisionZip 核心算法可以用 Jittor 实现；
+- 在固定的真实 CLIP 输入和三档预算下，Jittor 的离散选择结果与 PyTorch 参考结果一致，浮点输出满足设定容差；
+- 原生 Jittor GPT-2 Small 可以加载 Hugging Face 导出的权重并完成前向；
+- 冻结视觉特征和 GPT-2 后，只训练 Projector 的流程可以正常运行，验证集 NLL 从 6.6437 降到 2.4132；
+- KV-cache 在固定测试设置下能够保持 greedy 生成结果和缓存结构一致。
+
+不过，这次复现还没有覆盖：
+
+- VisionZip 论文中的全部数据集、模型规模、消融和下游表格；
+- LLaVA-7B/13B 的完整端到端训练；
+- COCO 多参考 caption、VQA 等正式质量指标；
+- 可以推广到不同模型、显卡和生成长度的误差或加速结论。
+
+所以目前这个仓库更适合看作：**VisionZip 核心方法的 Jittor 复现，加上真实 CLIP 对比和一次小规模多模态训练实验。**
+
+## 9. 相关结果与说明
+
+- 实验数字总览：[`docs/RESULTS_SUMMARY.md`](docs/RESULTS_SUMMARY.md)
+- 训练设置和表述边界：[`docs/TRAINING_AND_CLAIM_BOUNDARY.md`](docs/TRAINING_AND_CLAIM_BOUNDARY.md)
+- 真实 CLIP 数值排查：[`docs/PHASE2_REAL_CLIP.md`](docs/PHASE2_REAL_CLIP.md)
+- GPT-2 接入记录：[`docs/PHASE3B_REAL_GPT2.md`](docs/PHASE3B_REAL_GPT2.md)
+- 真实图文训练：[`docs/PHASE4B_REAL_PAIRED_TRAINING.md`](docs/PHASE4B_REAL_PAIRED_TRAINING.md)
+- KV-cache 测试：[`docs/PHASE5A_KV_CACHE_PLAN.md`](docs/PHASE5A_KV_CACHE_PLAN.md)
+- 精简 CSV/JSON：[`docs/results/`](docs/results/README.md)
+- 提交前检查：[`docs/SUBMISSION_READINESS.md`](docs/SUBMISSION_READINESS.md)
+
+## 10. License
+
+本项目采用 [Apache-2.0 License](LICENSE)。VisionZip 论文、官方代码、预训练模型和外部数据集仍遵循各自的许可说明。本仓库仅用于学习和研究复现。
