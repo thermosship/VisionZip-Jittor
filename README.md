@@ -377,10 +377,6 @@ Top-K 给出的是重要 Token 的位置，但它通常按分数排列。官方�
 
 我曾在已经安装 PyTorch 的环境中遇到 Transformers 报“没有找到 PyTorch”。原因不是包丢失，而是框架相关环境变量让 Transformers 在导入时跳过了 PyTorch 后端。现在导出脚本固定使用 `/root/miniconda3/bin/python`，Jittor 脚本使用单独的 Conda 环境，并在流水线中隔离这些变量。
 
-### 7.6 模型和实验文件太大，不适合直接提交 GitHub
-
-GPT-2 权重 NPZ 约 475 MiB，真实 CLIP 参考文件、8K 数据、冻结特征和 checkpoint 还会占用更多空间。这些大文件保存在 AutoDL 数据盘和带 SHA256 的本地归档中，GitHub 里只放源码、配置、精简 CSV/JSON、Loss 曲线和说明文档。AutoDL 访问 GitHub 偶尔还会出现 TLS 中断，因此长任务和大文件下载都尽量使用缓存、断点续传和 `tmux`。
-
 ## 8. 目前的复现范围
 
 根据目前的实验，我认为可以得到下面几条结论：
